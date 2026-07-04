@@ -50,7 +50,7 @@ export const addMinutes = (hhmm: string, mins: number) => {
 /** Now, rounded UP to the next 5 minutes — a friendly default start time. */
 export const nextFiveMinutes = () => {
   const d = new Date();
-  const total = Math.min(d.getHours() * 60 + d.getMinutes() + 5, 23 * 60 + 59);
+  const total = d.getHours() * 60 + d.getMinutes() + 5;
   const rounded = Math.min(Math.ceil(total / 5) * 5, 23 * 60 + 59);
   return `${pad(Math.floor(rounded / 60))}:${pad(rounded % 60)}`;
 };

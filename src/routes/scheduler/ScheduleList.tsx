@@ -2,7 +2,7 @@
 // one-click Focus Now, prefilled templates, and a schedule that runs itself
 // (the Rust loop opens/closes apps — you just show up).
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { ScheduleBlock } from "../../shared/types";
 import BlockForm from "./BlockForm";
@@ -90,8 +90,9 @@ export default function ScheduleList() {
     }
   }
 
-  const active = useMemo(() => activeBlockOf(blocks), [blocks, nowHHMM()]);
-  const next = useMemo(() => nextBlockToday(blocks), [blocks, nowHHMM()]);
+  // derived fresh each render — the 1s tick keeps these current
+  const active = activeBlockOf(blocks);
+  const next = nextBlockToday(blocks);
 
   const todayBlocks = blocks
     .filter(appliesToday)
