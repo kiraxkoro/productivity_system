@@ -45,6 +45,10 @@ export const OPEN_SUGGESTIONS: { label: string; target: string }[] = [
   { label: "Edge", target: "msedge" },
   { label: "Notepad", target: "notepad" },
   { label: "Spotify", target: "spotify:" },
+  {
+    label: "OBS Studio",
+    target: "C:\\Program Files\\obs-studio\\bin\\64bit\\obs64.exe",
+  },
 ];
 
 export interface Template {
