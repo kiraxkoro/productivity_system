@@ -89,9 +89,14 @@ pub fn open_target(target: &str) -> Result<(), String> {
             return Ok(());
         }
         // `start` resolves URLs, App Paths entries (chrome, msedge), PATH (code),
-        // shortcuts and documents.
+        // shortcuts and documents. The target must be quoted on the raw command
+        // line: cmd otherwise treats & ^ ( ) in URLs (e.g. playlist links with
+        // &index=2) as operators and truncates. The leading "" fills `start`'s
+        // window-title slot so the quoted target is never mistaken for it.
+        let sanitized = target.replace('"', "");
         std::process::Command::new("cmd")
-            .args(["/C", "start", "", target])
+            .arg("/C")
+            .raw_arg(format!("start \"\" \"{sanitized}\""))
             .creation_flags(CREATE_NO_WINDOW)
             .spawn()
             .map_err(|e| format!("failed to open '{target}': {e}"))?;
