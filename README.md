@@ -5,7 +5,7 @@ A desktop app that fixes "ambition without execution" — one Tauri app with two
 1. **Scheduler** — enforces time-blocked focus sessions. When a block starts (e.g. "6–8 PM: LeetCode"), the app closes distracting apps/tabs and opens the required ones.
 2. **Task Tracker** — tracks long-running goals (e.g. "90 LeetCode problems in 90 days") with live completion percentage.
 
-Tech: Tauri 2 (Rust backend) + React/TypeScript (Vite) + SQLite via `tauri-plugin-sql`. All data is local — no server.
+Tech: Tauri 2 (Rust backend) + React/TypeScript (Vite) + SQLite via `rusqlite` (bundled, in the Rust layer — see `src-tauri/src/db.rs`). All data is local — no server.
 
 ## Ownership
 
@@ -25,6 +25,14 @@ cd productivity_system
 npm install
 npm run tauri dev
 ```
+
+## Status (2026-07-04)
+
+**Scheduler (Person A): implemented.** Time blocks with weekly repeat or one-off "Focus Now" sessions, prebuilt templates, a distraction-blocker pack, and a Rust background loop (`scheduler_loop.rs`) that polls every 15s and fires each block's `onStart`/`onEnd` actions (open app/website, close app). `closeTab` still needs the browser extension (last milestone).
+
+**Task Tracker (Person B): open.** The `goals` SQLite table is already created in `src-tauri/src/db.rs`; implement the four commands from `src/shared/types.ts` in `src-tauri/src/commands/goals.rs` (register them in `lib.rs`'s `invoke_handler`), then build `src/routes/tracker/GoalList.tsx` / `GoalForm.tsx`. The "Task Tracker" tab in `src/App.tsx` currently shows a placeholder — swap it for `GoalList`.
+
+Note: `tauri-plugin-sql` was dropped in favor of `rusqlite` so both features share one DB connection managed in Rust (`AppState` in `lib.rs`).
 
 ## Workflow
 

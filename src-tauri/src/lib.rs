@@ -1,14 +1,127 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+mod commands;
+mod db;
+mod scheduler_loop;
+
+use std::sync::Mutex;
+use tauri::Manager;
+
+pub struct AppState {
+    pub db: Mutex<rusqlite::Connection>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // must be first: relaunching the app just focuses the running instance
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            show_main_window(app);
+        }))
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec!["--hidden"]),
+        ))
+        .setup(|app| {
+            let conn = db::init(app.handle())?;
+            app.manage(AppState { db: Mutex::new(conn) });
+            scheduler_loop::start(app.handle().clone());
+            setup_tray(app)?;
+            sync_autostart(app.handle());
+            // autostart launches us with --hidden: run in the tray, no window
+            if std::env::args().any(|a| a == "--hidden") {
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.hide();
+                }
+            }
+            Ok(())
+        })
+        // closing the window hides to tray — the scheduler must keep running
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+            }
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::schedules::create_schedule_block,
+            commands::schedules::update_schedule_block,
+            commands::schedules::list_schedule_blocks,
+            commands::schedules::delete_schedule_block,
+            commands::schedules::set_block_enabled,
+            commands::schedules::get_active_block,
+            commands::schedules::open_app,
+            commands::schedules::close_app,
+            commands::system::get_autostart,
+            commands::system::set_autostart,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
+    use tauri::menu::{Menu, MenuItem};
+    use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+
+    let show = MenuItem::with_id(app, "show", "Open Focus OS", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit completely", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&show, &quit])?;
+
+    TrayIconBuilder::with_id("focus-os-tray")
+        .icon(app.default_window_icon().expect("app icon missing").clone())
+        .tooltip("Focus OS — scheduler is running")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "show" => show_main_window(app),
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                show_main_window(tray.app_handle());
+            }
+        })
+        .build(app)?;
+    Ok(())
+}
+
+fn show_main_window(app: &tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.unminimize();
+        let _ = w.set_focus();
+    }
+}
+
+/// Lazy-person default: turn autostart ON the first time the app ever runs
+/// (respecting a later opt-out in Settings), and on every launch refresh the
+/// registered path so it always points at the current exe — otherwise it goes
+/// stale after installs/updates. Dev builds never touch autostart: only the
+/// installed app should own it.
+fn sync_autostart(app: &tauri::AppHandle) {
+    #[cfg(debug_assertions)]
+    {
+        let _ = app;
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        use tauri_plugin_autostart::ManagerExt;
+        let Ok(dir) = app.path().app_data_dir() else {
+            return;
+        };
+        let marker = dir.join(".autostart-default-set");
+        if !marker.exists() {
+            if app.autolaunch().enable().is_ok() {
+                let _ = std::fs::write(&marker, "done");
+            }
+        } else if app.autolaunch().is_enabled().unwrap_or(false) {
+            let _ = app.autolaunch().enable();
+        }
+    }
 }
