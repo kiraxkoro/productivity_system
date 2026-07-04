@@ -1,7 +1,8 @@
 // Person A: create/edit a schedule block. Designed so the lazy path is always
 // one click away: duration chips, day shortcuts, prebuilt action packs.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import type { BlockAction, ScheduleBlock } from "../../shared/types";
 import { addMinutes, DAY_LETTERS, todayISO, toMinutes } from "./api";
 import {
@@ -47,6 +48,66 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
   const [days, setDays] = useState<number[]>(initial.daysOfWeek);
   const [actions, setActions] = useState<BlockAction[]>(initial.actions);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+
+  const APP_FILTERS = [
+    { name: "Apps & shortcuts", extensions: ["exe", "lnk", "bat", "cmd"] },
+    { name: "All files", extensions: ["*"] },
+  ];
+
+  /** Lazy path: "+ App…" opens the native picker, the action adds itself. */
+  async function pickApp() {
+    try {
+      const picked = await openDialog({
+        title: "Choose an app to open when the block starts",
+        filters: APP_FILTERS,
+      });
+      if (typeof picked === "string") {
+        setActions((prev) => [
+          ...prev,
+          { trigger: "onStart", type: "openApp", target: picked },
+        ]);
+      }
+    } catch {
+      // dialog unavailable (running outside the desktop app) — ignore
+    }
+  }
+
+  async function pickFolder() {
+    try {
+      const picked = await openDialog({
+        directory: true,
+        title: "Choose a folder to open when the block starts",
+      });
+      if (typeof picked === "string") {
+        setActions((prev) => [
+          ...prev,
+          { trigger: "onStart", type: "openApp", target: picked },
+        ]);
+      }
+    } catch {
+      // dialog unavailable — ignore
+    }
+  }
+
+  async function browseRow(index: number) {
+    try {
+      const picked = await openDialog({
+        title: "Choose an app or file",
+        filters: APP_FILTERS,
+      });
+      if (typeof picked === "string") updateAction(index, { target: picked });
+    } catch {
+      // dialog unavailable — ignore
+    }
+  }
 
   function toggleDay(d: number) {
     setOneOff(false);
@@ -223,9 +284,27 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
               <input
                 list="target-suggestions"
                 value={a.target}
-                placeholder="app name or URL"
+                placeholder={
+                  a.type === "openTab" || a.type === "closeTab"
+                    ? "https://… (paste any link)"
+                    : a.type === "closeApp"
+                      ? "process name, e.g. Discord.exe"
+                      : "app name, full path, or folder"
+                }
                 onChange={(e) => updateAction(i, { target: e.currentTarget.value })}
               />
+              {a.type === "openApp" ? (
+                <button
+                  type="button"
+                  className="icon-btn"
+                  title="Browse for an app or file"
+                  onClick={() => void browseRow(i)}
+                >
+                  📁
+                </button>
+              ) : (
+                <span />
+              )}
               <button
                 type="button"
                 className="icon-btn"
@@ -259,14 +338,18 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
             <button
               type="button"
               className="chip"
-              onClick={() =>
-                setActions((prev) => [
-                  ...prev,
-                  { trigger: "onStart", type: "openApp", target: "code" },
-                ])
-              }
+              title="Browse your PC for the app to open (e.g. OBS)"
+              onClick={() => void pickApp()}
             >
-              + Open app
+              ＋ App…
+            </button>
+            <button
+              type="button"
+              className="chip"
+              title="Pick a folder to open in Explorer"
+              onClick={() => void pickFolder()}
+            >
+              ＋ Folder…
             </button>
             <button
               type="button"
@@ -278,7 +361,20 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
                 ])
               }
             >
-              + Open website
+              ＋ Website
+            </button>
+            <button
+              type="button"
+              className="chip"
+              title="Empty row — type an app name like code or chrome"
+              onClick={() =>
+                setActions((prev) => [
+                  ...prev,
+                  { trigger: "onStart", type: "openApp", target: "" },
+                ])
+              }
+            >
+              ＋ Custom
             </button>
           </div>
           <datalist id="target-suggestions">

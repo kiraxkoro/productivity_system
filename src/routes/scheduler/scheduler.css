@@ -242,6 +242,12 @@
   background: color-mix(in srgb, var(--muted) 22%, transparent);
   color: var(--muted);
 }
+.pill.soon {
+  background: color-mix(in srgb, var(--accent-soft) 16%, transparent);
+  color: var(--accent-soft);
+  text-transform: none;
+  letter-spacing: normal;
+}
 .block-actions {
   display: flex;
   align-items: center;
@@ -380,7 +386,7 @@
 }
 .action-row {
   display: grid;
-  grid-template-columns: auto auto 1fr auto;
+  grid-template-columns: auto auto 1fr auto auto;
   gap: 6px;
   align-items: center;
   margin-bottom: 6px;
