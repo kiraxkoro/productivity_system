@@ -73,7 +73,23 @@ pub fn open_target(target: &str) -> Result<(), String> {
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        // `start` resolves URLs, App Paths entries (chrome, msedge), PATH (code) and full paths.
+        let path = std::path::Path::new(target);
+        // A full path to an .exe is spawned directly with its own folder as the
+        // working directory — apps like OBS refuse to start from anywhere else.
+        if path.is_absolute()
+            && path.extension().is_some_and(|e| e.eq_ignore_ascii_case("exe"))
+            && path.exists()
+        {
+            let mut cmd = std::process::Command::new(target);
+            if let Some(parent) = path.parent() {
+                cmd.current_dir(parent);
+            }
+            cmd.spawn()
+                .map_err(|e| format!("failed to launch '{target}': {e}"))?;
+            return Ok(());
+        }
+        // `start` resolves URLs, App Paths entries (chrome, msedge), PATH (code),
+        // shortcuts and documents.
         std::process::Command::new("cmd")
             .args(["/C", "start", "", target])
             .creation_flags(CREATE_NO_WINDOW)
