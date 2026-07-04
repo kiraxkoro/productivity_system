@@ -19,6 +19,9 @@ export const getActiveBlock = () =>
 export const openApp = (path: string) => invoke<void>("open_app", { path });
 export const closeApp = (processName: string) =>
   invoke<void>("close_app", { processName });
+export const getAutostart = () => invoke<boolean>("get_autostart");
+export const setAutostart = (enabled: boolean) =>
+  invoke<void>("set_autostart", { enabled });
 
 // ---- time helpers ----
 export const pad = (n: number) => String(n).padStart(2, "0");

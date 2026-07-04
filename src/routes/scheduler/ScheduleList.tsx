@@ -14,6 +14,8 @@ import {
   deleteBlock,
   describeDays,
   fmtTime,
+  getAutostart,
+  setAutostart,
   humanDuration,
   listBlocks,
   nextBlockToday,
@@ -38,6 +40,8 @@ export default function ScheduleList() {
   const [killDistractions, setKillDistractions] = useState(
     () => localStorage.getItem(KILL_KEY) !== "0",
   );
+  // null = backend doesn't support it (e.g. old build) -> card stays hidden
+  const [autostart, setAutostartState] = useState<boolean | null>(null);
   const [, setTick] = useState(0); // 1s heartbeat so countdowns stay live
 
   const refresh = useCallback(async () => {
@@ -68,6 +72,23 @@ export default function ScheduleList() {
   useEffect(() => {
     localStorage.setItem(KILL_KEY, killDistractions ? "1" : "0");
   }, [killDistractions]);
+
+  useEffect(() => {
+    getAutostart()
+      .then(setAutostartState)
+      .catch(() => setAutostartState(null));
+  }, []);
+
+  async function toggleAutostart() {
+    if (autostart === null) return;
+    const next = !autostart;
+    try {
+      await setAutostart(next);
+      setAutostartState(next);
+    } catch (e) {
+      setLoadError(String(e));
+    }
+  }
 
   const active = useMemo(() => activeBlockOf(blocks), [blocks, nowHHMM()]);
   const next = useMemo(() => nextBlockToday(blocks), [blocks, nowHHMM()]);
@@ -246,6 +267,28 @@ export default function ScheduleList() {
               />
             ))}
           </ul>
+        </section>
+      )}
+
+      {autostart !== null && (
+        <section className="card">
+          <h3>
+            ⚙️ Runs by itself{" "}
+            <span className="muted">so day-2 laziness can't win</span>
+          </h3>
+          <p className="muted small">
+            Closing the window doesn't quit Focus OS — it keeps running in the
+            system tray (bottom-right of the taskbar) so your schedule always
+            fires. Right-click the tray icon to quit completely.
+          </p>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={autostart}
+              onChange={() => void toggleAutostart()}
+            />
+            start automatically with Windows (recommended)
+          </label>
         </section>
       )}
 
