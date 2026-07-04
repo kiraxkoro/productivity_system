@@ -1,8 +1,135 @@
 // Person A: schedule block CRUD + open_app/close_app commands.
-// Contract (see src/shared/types.ts):
-//   create_schedule_block(block: ScheduleBlock) -> ScheduleBlock
-//   list_schedule_blocks() -> Vec<ScheduleBlock>
-//   delete_schedule_block(id: String) -> ()
-//   get_active_block() -> Option<ScheduleBlock>
-//   open_app(path: String) -> Result<(), String>
-//   close_app(process_name: String) -> Result<(), String>
+// Contract lives in src/shared/types.ts.
+
+use crate::db::{self, ScheduleBlock};
+use crate::AppState;
+use tauri::State;
+
+#[tauri::command]
+pub fn create_schedule_block(
+    state: State<AppState>,
+    block: ScheduleBlock,
+) -> Result<ScheduleBlock, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    db::upsert_block(&conn, &block).map_err(|e| e.to_string())?;
+    Ok(block)
+}
+
+#[tauri::command]
+pub fn update_schedule_block(
+    state: State<AppState>,
+    block: ScheduleBlock,
+) -> Result<ScheduleBlock, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    db::upsert_block(&conn, &block).map_err(|e| e.to_string())?;
+    Ok(block)
+}
+
+#[tauri::command]
+pub fn list_schedule_blocks(state: State<AppState>) -> Result<Vec<ScheduleBlock>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    db::list_blocks(&conn).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn delete_schedule_block(state: State<AppState>, id: String) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    db::delete_block(&conn, &id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_block_enabled(
+    state: State<AppState>,
+    id: String,
+    enabled: bool,
+) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    db::set_enabled(&conn, &id, enabled).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_active_block(state: State<AppState>) -> Result<Option<ScheduleBlock>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    db::get_active_block(&conn).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn open_app(path: String) -> Result<(), String> {
+    open_target(path.trim())
+}
+
+#[tauri::command]
+pub fn close_app(process_name: String) -> Result<(), String> {
+    close_process(process_name.trim())
+}
+
+/// Opens a URL, a registered app name ("chrome", "code"), or a full exe path.
+/// Also used by scheduler_loop for onStart/onEnd actions.
+pub fn open_target(target: &str) -> Result<(), String> {
+    if target.is_empty() {
+        return Err("empty target".into());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        // `start` resolves URLs, App Paths entries (chrome, msedge), PATH (code) and full paths.
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", target])
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+            .map_err(|e| format!("failed to open '{target}': {e}"))?;
+        Ok(())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let opener = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
+        std::process::Command::new(opener)
+            .arg(target)
+            .spawn()
+            .map_err(|e| format!("failed to open '{target}': {e}"))?;
+        Ok(())
+    }
+}
+
+/// Kills a process by image name; "Discord" and "Discord.exe" both work.
+/// A process that isn't running counts as success (it's already "closed").
+pub fn close_process(name: &str) -> Result<(), String> {
+    if name.is_empty() {
+        return Err("empty process name".into());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let exe = if name.to_ascii_lowercase().ends_with(".exe") {
+            name.to_string()
+        } else {
+            format!("{name}.exe")
+        };
+        let out = std::process::Command::new("taskkill")
+            .args(["/IM", &exe, "/F", "/T"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .map_err(|e| e.to_string())?;
+        // taskkill exits 128 when no such process exists
+        if out.status.success() || out.status.code() == Some(128) {
+            Ok(())
+        } else {
+            Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let out = std::process::Command::new("pkill")
+            .args(["-f", name])
+            .output()
+            .map_err(|e| e.to_string())?;
+        // pkill exits 1 when nothing matched
+        if out.status.success() || out.status.code() == Some(1) {
+            Ok(())
+        } else {
+            Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
+        }
+    }
+}

@@ -1,50 +1,52 @@
 import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
+import ScheduleList from "./routes/scheduler/ScheduleList";
 import "./App.css";
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+type Tab = "scheduler" | "tracker";
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
+function App() {
+  const [tab, setTab] = useState<Tab>("scheduler");
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
+    <div className="app">
+      <header className="topbar">
+        <div className="brand">⚡ Focus OS</div>
+        <nav className="tabs">
+          <button
+            className={tab === "scheduler" ? "tab on" : "tab"}
+            onClick={() => setTab("scheduler")}
+          >
+            Scheduler
+          </button>
+          <button
+            className={tab === "tracker" ? "tab on" : "tab"}
+            onClick={() => setTab("tracker")}
+          >
+            Task Tracker
+          </button>
+        </nav>
+      </header>
+      <main className="content">
+        {tab === "scheduler" ? <ScheduleList /> : <TrackerPlaceholder />}
+      </main>
+    </div>
+  );
+}
 
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+// Person B's territory — this placeholder lives here (not in src/routes/tracker/)
+// so their folder stays untouched until they build GoalList/GoalForm.
+function TrackerPlaceholder() {
+  return (
+    <div className="tracker-placeholder">
+      <div className="tracker-emoji">🎯</div>
+      <h2>Task Tracker</h2>
+      <p>
+        Long-running goals like "90 LeetCode problems in 90 days" live here.
+        <br />
+        Person B is building this — the <code>goals</code> table and command
+        contract are already waiting in <code>src/shared/types.ts</code>.
+      </p>
+    </div>
   );
 }
 
