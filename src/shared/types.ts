@@ -19,8 +19,11 @@ export interface ScheduleBlock {
   label: string; // "LeetCode Grind"
   startTime: string; // "18:00"
   endTime: string; // "20:00"
-  daysOfWeek: number[]; // [1,2,3,4,5] = Mon-Fri
+  daysOfWeek: number[]; // [1,2,3,4,5] = Mon-Fri (0 = Sunday, same as JS Date.getDay())
   actions: BlockAction[];
+  // Added by Person A (2026-07-04), additive only — Goal untouched:
+  enabled: boolean; // pause a block without deleting it
+  oneOffDate: string | null; // "YYYY-MM-DD" for one-time blocks ("Focus Now"); null = repeats weekly
 }
 
 export interface BlockAction {
@@ -40,9 +43,18 @@ Person B implements (in commands/goals.rs):
 
 Person A implements (in commands/schedules.rs):
   create_schedule_block(block: ScheduleBlock) -> ScheduleBlock
+  update_schedule_block(block: ScheduleBlock) -> ScheduleBlock   // added by Person A
   list_schedule_blocks() -> Vec<ScheduleBlock>
   delete_schedule_block(id: String) -> ()
-  get_active_block() -> Option<ScheduleBlock>   // polled by scheduler_loop every 30-60s
+  set_block_enabled(id: String, enabled: bool) -> ()             // added by Person A
+  get_active_block() -> Option<ScheduleBlock>   // polled by scheduler_loop every 15s
   open_app(path: String) -> Result<(), String>
   close_app(process_name: String) -> Result<(), String>
+
+Events emitted from Rust (listen via @tauri-apps/api/event):
+  "active-block-changed" -> ScheduleBlock | null   // fired when a block starts/ends
+
+Persistence note (2026-07-04): SQLite lives in Rust via `rusqlite` (see src-tauri/src/db.rs —
+it already creates BOTH the schedule_blocks and goals tables). tauri-plugin-sql was removed;
+Person B just implements the four goal commands in commands/goals.rs against db.rs.
 */
