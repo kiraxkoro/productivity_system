@@ -383,6 +383,9 @@ function BlockRow({
   } else if (today && block.endTime <= t) {
     status = "done ✓";
     statusClass = "done";
+  } else if (today && block.startTime > t) {
+    status = `in ${humanDuration(toMinutes(block.startTime) - toMinutes(t))}`;
+    statusClass = "soon";
   }
   const autoCount = block.actions.length;
 
