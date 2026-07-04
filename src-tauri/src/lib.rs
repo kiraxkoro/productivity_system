@@ -27,7 +27,7 @@ pub fn run() {
             app.manage(AppState { db: Mutex::new(conn) });
             scheduler_loop::start(app.handle().clone());
             setup_tray(app)?;
-            enable_autostart_on_first_run(app.handle());
+            sync_autostart(app.handle());
             // autostart launches us with --hidden: run in the tray, no window
             if std::env::args().any(|a| a == "--hidden") {
                 if let Some(w) = app.get_webview_window("main") {
@@ -99,18 +99,29 @@ fn show_main_window(app: &tauri::AppHandle) {
     }
 }
 
-/// Lazy-person default: turn autostart ON the first time the app ever runs,
-/// but only once — if the user switches it off in Settings, respect that.
-fn enable_autostart_on_first_run(app: &tauri::AppHandle) {
-    use tauri_plugin_autostart::ManagerExt;
-    let Ok(dir) = app.path().app_data_dir() else {
-        return;
-    };
-    let marker = dir.join(".autostart-default-set");
-    if marker.exists() {
-        return;
+/// Lazy-person default: turn autostart ON the first time the app ever runs
+/// (respecting a later opt-out in Settings), and on every launch refresh the
+/// registered path so it always points at the current exe — otherwise it goes
+/// stale after installs/updates. Dev builds never touch autostart: only the
+/// installed app should own it.
+fn sync_autostart(app: &tauri::AppHandle) {
+    #[cfg(debug_assertions)]
+    {
+        let _ = app;
     }
-    if app.autolaunch().enable().is_ok() {
-        let _ = std::fs::write(&marker, "done");
+    #[cfg(not(debug_assertions))]
+    {
+        use tauri_plugin_autostart::ManagerExt;
+        let Ok(dir) = app.path().app_data_dir() else {
+            return;
+        };
+        let marker = dir.join(".autostart-default-set");
+        if !marker.exists() {
+            if app.autolaunch().enable().is_ok() {
+                let _ = std::fs::write(&marker, "done");
+            }
+        } else if app.autolaunch().is_enabled().unwrap_or(false) {
+            let _ = app.autolaunch().enable();
+        }
     }
 }
