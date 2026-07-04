@@ -52,7 +52,22 @@ fn tick(app: &AppHandle, last_active: &mut Option<ScheduleBlock>) {
 }
 
 fn run_actions(block: &ScheduleBlock, trigger: &str) {
-    for action in block.actions.iter().filter(|a| a.trigger == trigger) {
+    // Closes always run before opens, so "close chrome + open leetcode.com"
+    // reliably lands you in a fresh browser showing only the assigned sites.
+    let (closes, opens): (Vec<&BlockAction>, Vec<&BlockAction>) = block
+        .actions
+        .iter()
+        .filter(|a| a.trigger == trigger)
+        .partition(|a| a.r#type.starts_with("close"));
+    for action in &closes {
+        run_action(action);
+    }
+    if !closes.is_empty() && !opens.is_empty() {
+        // let killed apps (especially browsers) fully die so the open actions
+        // launch a fresh instance instead of racing the dying one
+        std::thread::sleep(Duration::from_millis(1500));
+    }
+    for action in &opens {
         run_action(action);
     }
 }
