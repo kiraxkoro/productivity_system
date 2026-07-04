@@ -21,6 +21,23 @@ export const distractionBlockers = (): BlockAction[] =>
     target: d.process,
   }));
 
+/** Browsers for the "fresh browser" trick: close the whole browser at block
+ *  start, then the block's open-website actions relaunch it showing ONLY the
+ *  assigned sites. Deliberately NOT in the kill-pack — closing your browser
+ *  is opt-in per block (selective tab-closing needs the future extension). */
+export const BROWSERS: { label: string; process: string }[] = [
+  { label: "Chrome", process: "chrome.exe" },
+  { label: "Edge", process: "msedge.exe" },
+  { label: "Brave", process: "brave.exe" },
+  { label: "Firefox", process: "firefox.exe" },
+];
+
+export const freshBrowser = (): BlockAction => ({
+  trigger: "onStart",
+  type: "closeApp",
+  target: "chrome.exe",
+});
+
 /** Suggestions for "open app" targets (Windows `start` resolves all of these). */
 export const OPEN_SUGGESTIONS: { label: string; target: string }[] = [
   { label: "VS Code", target: "code" },
@@ -43,8 +60,9 @@ export const TEMPLATES: Template[] = [
     emoji: "🧠",
     label: "LeetCode Grind",
     durationMin: 90,
-    hint: "opens LeetCode, kills distractions",
+    hint: "fresh browser with only LeetCode, kills distractions",
     actions: [
+      freshBrowser(),
       {
         trigger: "onStart",
         type: "openTab",

@@ -4,7 +4,13 @@
 import { useState } from "react";
 import type { BlockAction, ScheduleBlock } from "../../shared/types";
 import { addMinutes, DAY_LETTERS, todayISO, toMinutes } from "./api";
-import { DISTRACTIONS, distractionBlockers, OPEN_SUGGESTIONS } from "./presets";
+import {
+  BROWSERS,
+  DISTRACTIONS,
+  distractionBlockers,
+  freshBrowser,
+  OPEN_SUGGESTIONS,
+} from "./presets";
 
 interface Props {
   initial: ScheduleBlock;
@@ -237,6 +243,22 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
             <button
               type="button"
               className="chip"
+              title="Closes the whole browser at block start; your open-website actions then relaunch it showing only your assigned sites"
+              onClick={() =>
+                setActions((prev) =>
+                  prev.some(
+                    (a) => a.type === "closeApp" && a.target === freshBrowser().target,
+                  )
+                    ? prev
+                    : [...prev, freshBrowser()],
+                )
+              }
+            >
+              🌐 Fresh browser
+            </button>
+            <button
+              type="button"
+              className="chip"
               onClick={() =>
                 setActions((prev) => [
                   ...prev,
@@ -268,6 +290,11 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
             {DISTRACTIONS.map((d) => (
               <option key={d.process} value={d.process}>
                 {d.label}
+              </option>
+            ))}
+            {BROWSERS.map((b) => (
+              <option key={b.process} value={b.process}>
+                {b.label}
               </option>
             ))}
           </datalist>
