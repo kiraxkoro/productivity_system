@@ -51,6 +51,10 @@ Person A implements (in commands/schedules.rs):
   open_app(path: String) -> Result<(), String>
   close_app(process_name: String) -> Result<(), String>
 
+App-level (Person A, in commands/system.rs):
+  get_autostart() -> bool                        // "start with Windows" state
+  set_autostart(enabled: bool) -> ()
+
 Events emitted from Rust (listen via @tauri-apps/api/event):
   "active-block-changed" -> ScheduleBlock | null   // fired when a block starts/ends
 
