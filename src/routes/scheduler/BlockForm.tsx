@@ -5,7 +5,13 @@
 import { useEffect, useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import type { BlockAction, ScheduleBlock } from "../../shared/types";
-import { addMinutes, DAY_LETTERS, todayISO, toMinutes } from "./api";
+import {
+  addMinutes,
+  DAY_LETTERS,
+  getAllowedBrowser,
+  todayISO,
+  toMinutes,
+} from "./api";
 import {
   BROWSERS,
   DISTRACTIONS,
@@ -93,15 +99,27 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
   const [days, setDays] = useState<number[]>(initial.daysOfWeek);
   const [error, setError] = useState("");
 
+  // The user's chosen browser (others get locked out during blocks).
+  const [allowedBrowser, setAllowedBrowserState] = useState("chrome.exe");
+  useEffect(() => {
+    getAllowedBrowser().then(setAllowedBrowserState).catch(() => {});
+  }, []);
+
   // Split the incoming actions into the three lockdown packs + custom rows.
   // Brand-new empty blocks get full lockdown ON — that's the whole point.
+  // Any closeApp aimed at a browser counts as the fresh-browser flag,
+  // regardless of WHICH browser an older block targeted.
   const [initialSplit] = useState(() => {
+    const browserProcs = BROWSERS.map((b) => b.process.toLowerCase());
+    const isBrowserClose = (a: BlockAction) =>
+      a.type === "closeApp" &&
+      browserProcs.includes(a.target.trim().toLowerCase());
     const blank = isNew && initial.actions.length === 0;
-    const f = extractPack(initial.actions, [freshBrowser()]);
-    const a = extractPack(f.rest, distractionBlockers());
+    const withoutFresh = initial.actions.filter((a) => !isBrowserClose(a));
+    const a = extractPack(withoutFresh, distractionBlockers());
     const s = extractPack(a.rest, siteBlockers());
     return {
-      fresh: blank || f.present,
+      fresh: blank || initial.actions.some(isBrowserClose),
       apps: blank || a.present,
       sites: blank || s.present,
       custom: s.rest.map((x) => ({ ...x })),
@@ -215,7 +233,7 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
         ? [new Date().getDay()]
         : [...days].sort((a, b) => a - b),
       actions: [
-        ...(fresh ? [freshBrowser()] : []),
+        ...(fresh ? [freshBrowser(allowedBrowser)] : []),
         ...(apps ? distractionBlockers() : []),
         ...(sites ? siteBlockers() : []),
         ...custom,
@@ -316,10 +334,12 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
           </span>
           <label className="lockdown-row">
             <span className="lockdown-text">
-              <b>🌐 Fresh browser</b>
+              <b>🌐 Browser lockdown</b>
               <small>
-                closes Chrome when the block starts — your "open website" links
-                relaunch it clean, old tabs gone
+                {BROWSERS.find((b) => b.process === allowedBrowser)?.label ??
+                  "Your browser"}{" "}
+                restarts clean (old tabs gone) — every other browser is closed
+                and kept closed for the whole block
               </small>
             </span>
             <span className="switch">

@@ -54,6 +54,8 @@ Person A implements (in commands/schedules.rs):
 App-level (Person A, in commands/system.rs):
   get_autostart() -> bool                        // "start with Windows" state
   set_autostart(enabled: bool) -> ()
+  get_allowed_browser() -> String                // e.g. "chrome.exe"; auto-detected from Windows default
+  set_allowed_browser(exe: String) -> ()         // other browsers are locked out during lockdown blocks
 
 Events emitted from Rust (listen via @tauri-apps/api/event):
   "active-block-changed" -> ScheduleBlock | null   // fired when a block starts/ends

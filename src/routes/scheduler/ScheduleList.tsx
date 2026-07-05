@@ -14,7 +14,9 @@ import {
   deleteBlock,
   describeDays,
   fmtTime,
+  getAllowedBrowser,
   getAutostart,
+  setAllowedBrowser,
   setAutostart,
   humanDuration,
   listBlocks,
@@ -27,6 +29,7 @@ import {
   updateBlock,
 } from "./api";
 import {
+  BROWSERS,
   distractionBlockers,
   freshBrowser,
   siteBlockers,
@@ -48,6 +51,7 @@ export default function ScheduleList() {
   );
   // null = backend doesn't support it (e.g. old build) -> card stays hidden
   const [autostart, setAutostartState] = useState<boolean | null>(null);
+  const [browser, setBrowserState] = useState("chrome.exe");
   const [, setTick] = useState(0); // 1s heartbeat so countdowns stay live
 
   const refresh = useCallback(async () => {
@@ -83,7 +87,17 @@ export default function ScheduleList() {
     getAutostart()
       .then(setAutostartState)
       .catch(() => setAutostartState(null));
+    getAllowedBrowser().then(setBrowserState).catch(() => {});
   }, []);
+
+  async function changeBrowser(exe: string) {
+    try {
+      await setAllowedBrowser(exe);
+      setBrowserState(exe);
+    } catch (e) {
+      setLoadError(String(e));
+    }
+  }
 
   async function toggleAutostart() {
     if (autostart === null) return;
@@ -116,7 +130,7 @@ export default function ScheduleList() {
       endTime: addMinutes(start, minutes),
       daysOfWeek: [new Date().getDay()],
       actions: killDistractions
-        ? [freshBrowser(), ...distractionBlockers(), ...siteBlockers()]
+        ? [freshBrowser(browser), ...distractionBlockers(), ...siteBlockers()]
         : [],
       enabled: true,
       oneOffDate: todayISO(),
@@ -297,6 +311,23 @@ export default function ScheduleList() {
               onChange={() => void toggleAutostart()}
             />
             start automatically with Windows (recommended)
+          </label>
+          <label className="check browser-pick">
+            your browser:
+            <select
+              value={browser}
+              onChange={(e) => void changeBrowser(e.currentTarget.value)}
+            >
+              {BROWSERS.map((b) => (
+                <option key={b.process} value={b.process}>
+                  {b.label}
+                </option>
+              ))}
+            </select>
+            <span className="muted small">
+              — this one survives lockdown blocks (put the extension here);
+              all others get closed & kept closed
+            </span>
           </label>
         </section>
       )}

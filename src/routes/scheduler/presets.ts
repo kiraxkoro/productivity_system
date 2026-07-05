@@ -34,10 +34,12 @@ export const BROWSERS: { label: string; process: string }[] = [
   { label: "Firefox", process: "firefox.exe" },
 ];
 
-export const freshBrowser = (): BlockAction => ({
+/** Close-the-browser-at-start marker. Pass the user's chosen browser; the
+ *  scheduler also locks out every OTHER browser while the block runs. */
+export const freshBrowser = (browserExe = "chrome.exe"): BlockAction => ({
   trigger: "onStart",
   type: "closeApp",
-  target: "chrome.exe",
+  target: browserExe,
 });
 
 /** Sites the "Block sites" pack locks out (needs the browser extension —
