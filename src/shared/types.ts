@@ -8,10 +8,25 @@ export interface Goal {
   targetCount: number; // 90
   currentCount: number; // updates as user logs progress
   unit: string; // "problems", "days", "hours"
-  startDate: string; // ISO date
-  endDate: string;
+  startDate: string; // ISO date (informational — tasks have no deadline)
+  endDate: string; // unused since 2026-07-05 ("" for new tasks); kept for compatibility
+  // Added by Person B (2026-07-05), additive only — ScheduleBlock untouched:
+  itemLabels: string[]; // per-checkbox labels; [] = default "Task 1..N"
+  checkedItems: number[]; // 0-based indices of checked boxes; length = currentCount
 }
 // percentage = (currentCount / targetCount) * 100
+
+// --- Habit Tracker (Person B, 2026-07-05) ---
+export interface Habit {
+  id: string;
+  title: string; // "Morning run" — the habit IS the description
+  createdDate: string; // ISO date, start of tracking
+}
+
+export interface HabitLog {
+  habitId: string;
+  date: string; // "YYYY-MM-DD" — presence means done that day
+}
 
 // --- Scheduler (Person A) ---
 export interface ScheduleBlock {
@@ -38,8 +53,16 @@ Rust command contract (what the UI calls via invoke()):
 Person B implements (in commands/goals.rs):
   create_goal(goal: Goal) -> Goal
   list_goals() -> Vec<Goal>
+  update_goal(goal: Goal) -> Goal                 // added 2026-07-05: full upsert (labels + checkboxes)
   update_goal_progress(id: String, new_count: i32) -> Goal
   delete_goal(id: String) -> ()
+
+Person B implements (in commands/habits.rs, added 2026-07-05):
+  create_habit(habit: Habit) -> Habit
+  list_habits() -> Vec<Habit>
+  delete_habit(id: String) -> ()
+  set_habit_done(habit_id: String, date: String, done: bool) -> ()
+  list_habit_logs(from: String, to: String) -> Vec<HabitLog>   // inclusive date range
 
 Person A implements (in commands/schedules.rs):
   create_schedule_block(block: ScheduleBlock) -> ScheduleBlock

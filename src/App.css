@@ -157,18 +157,3 @@ button.ghost:hover {
 .muted {
   color: var(--muted);
 }
-
-/* ---- tracker placeholder (Person B) ---- */
-.tracker-placeholder {
-  text-align: center;
-  padding: 80px 20px;
-  color: var(--muted);
-}
-.tracker-emoji {
-  font-size: 3rem;
-  margin-bottom: 8px;
-}
-.tracker-placeholder h2 {
-  color: var(--text);
-  margin: 0 0 10px;
-}

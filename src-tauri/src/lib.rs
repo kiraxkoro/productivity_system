@@ -56,6 +56,16 @@ pub fn run() {
             commands::schedules::close_app,
             commands::system::get_autostart,
             commands::system::set_autostart,
+            commands::goals::create_goal,
+            commands::goals::list_goals,
+            commands::goals::update_goal,
+            commands::goals::update_goal_progress,
+            commands::goals::delete_goal,
+            commands::habits::create_habit,
+            commands::habits::list_habits,
+            commands::habits::delete_habit,
+            commands::habits::set_habit_done,
+            commands::habits::list_habit_logs,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

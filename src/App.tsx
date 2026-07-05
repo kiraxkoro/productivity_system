@@ -1,5 +1,6 @@
 import { useState } from "react";
 import ScheduleList from "./routes/scheduler/ScheduleList";
+import TrackerPage from "./routes/tracker/TrackerPage";
 import "./App.css";
 
 type Tab = "scheduler" | "tracker";
@@ -22,30 +23,13 @@ function App() {
             className={tab === "tracker" ? "tab on" : "tab"}
             onClick={() => setTab("tracker")}
           >
-            Task Tracker
+            Tracker
           </button>
         </nav>
       </header>
       <main className="content">
-        {tab === "scheduler" ? <ScheduleList /> : <TrackerPlaceholder />}
+        {tab === "scheduler" ? <ScheduleList /> : <TrackerPage />}
       </main>
-    </div>
-  );
-}
-
-// Person B's territory — this placeholder lives here (not in src/routes/tracker/)
-// so their folder stays untouched until they build GoalList/GoalForm.
-function TrackerPlaceholder() {
-  return (
-    <div className="tracker-placeholder">
-      <div className="tracker-emoji">🎯</div>
-      <h2>Task Tracker</h2>
-      <p>
-        Long-running goals like "90 LeetCode problems in 90 days" live here.
-        <br />
-        Person B is building this — the <code>goals</code> table and command
-        contract are already waiting in <code>src/shared/types.ts</code>.
-      </p>
     </div>
   );
 }
