@@ -384,6 +384,28 @@
   border-color: var(--accent);
   color: #fff;
 }
+.lockdown-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+.lockdown-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.lockdown-text small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
 .action-row {
   display: grid;
   grid-template-columns: auto auto 1fr auto auto;

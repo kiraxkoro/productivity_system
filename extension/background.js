@@ -6,6 +6,7 @@
 const API = "http://127.0.0.1:48210/blocklist";
 
 let state = { active: false, domains: [], label: "", endTime: "" };
+let fetchedAt = 0;
 
 // Restore last-known state instantly when the service worker wakes, so
 // navigation events can be matched before the next fetch returns.
@@ -17,11 +18,18 @@ async function refresh() {
   try {
     const res = await fetch(API);
     state = await res.json();
+    fetchedAt = Date.now();
   } catch {
     state = { active: false, domains: [], label: "", endTime: "" };
   }
   await chrome.storage.session.set({ state });
   if (state.active && state.domains.length) await sweepAllTabs();
+}
+
+// Tab activity re-checks the blocklist immediately when the cached copy is
+// stale, so a block that just started bites in ~1s instead of up to 30s.
+function maybeRefresh() {
+  if (Date.now() - fetchedAt > 10_000) refresh();
 }
 
 function isBlocked(url) {
@@ -32,7 +40,12 @@ function isBlocked(url) {
   } catch {
     return false;
   }
-  return state.domains.some((d) => host === d || host.endsWith("." + d));
+  // "youtube.com" matches youtube.com + any subdomain; a bare token like
+  // "youtube" (user skipped the .com) matches any host containing that label
+  return state.domains.some(
+    (d) =>
+      host === d || host.endsWith("." + d) || host.split(".").includes(d),
+  );
 }
 
 function blockedPageUrl() {
@@ -55,11 +68,13 @@ async function sweepAllTabs() {
 }
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  maybeRefresh();
   const url = changeInfo.url || (changeInfo.status === "loading" ? tab.url : null);
   if (url && isBlocked(url)) blockTab(tabId);
 });
 
 chrome.tabs.onCreated.addListener((tab) => {
+  maybeRefresh();
   if (tab.id !== undefined && tab.pendingUrl && isBlocked(tab.pendingUrl)) {
     blockTab(tab.id);
   }

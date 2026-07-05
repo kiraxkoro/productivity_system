@@ -26,7 +26,13 @@ import {
   todayISO,
   updateBlock,
 } from "./api";
-import { distractionBlockers, TEMPLATES, type Template } from "./presets";
+import {
+  distractionBlockers,
+  freshBrowser,
+  siteBlockers,
+  TEMPLATES,
+  type Template,
+} from "./presets";
 import "./scheduler.css";
 
 const FOCUS_DURATIONS = [25, 50, 90];
@@ -109,7 +115,9 @@ export default function ScheduleList() {
       startTime: start,
       endTime: addMinutes(start, minutes),
       daysOfWeek: [new Date().getDay()],
-      actions: killDistractions ? distractionBlockers() : [],
+      actions: killDistractions
+        ? [freshBrowser(), ...distractionBlockers(), ...siteBlockers()]
+        : [],
       enabled: true,
       oneOffDate: todayISO(),
     };
@@ -205,7 +213,7 @@ export default function ScheduleList() {
               checked={killDistractions}
               onChange={(e) => setKillDistractions(e.currentTarget.checked)}
             />
-            keep distractions closed (Discord, Steam, Spotify… re-killed if reopened)
+            full lockdown — fresh browser, distracting apps & sites blocked
           </label>
         </div>
       </section>
