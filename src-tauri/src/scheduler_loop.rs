@@ -97,11 +97,8 @@ fn run_action(action: &BlockAction) {
         "openApp" | "openTab" => open_target(action.target.trim()),
         "closeApp" => close_process(action.target.trim()),
         "closeTab" => {
-            // real per-tab control needs the browser extension (later milestone)
-            eprintln!(
-                "[scheduler] closeTab not implemented yet (target: {})",
-                action.target
-            );
+            // handled by the browser extension: it polls blocklist_server and
+            // blocks matching tabs for the whole block — nothing to do here
             Ok(())
         }
         other => {

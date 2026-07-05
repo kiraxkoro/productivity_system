@@ -11,6 +11,7 @@ import {
   distractionBlockers,
   freshBrowser,
   OPEN_SUGGESTIONS,
+  siteBlockers,
 } from "./presets";
 
 interface Props {
@@ -29,7 +30,7 @@ const TYPE_OPTIONS = [
   { value: "openApp", label: "open app" },
   { value: "openTab", label: "open website" },
   { value: "closeApp", label: "close app" },
-  { value: "closeTab", label: "close tab (soon)" },
+  { value: "closeTab", label: "block website" },
 ] as const;
 
 const DURATION_CHIPS = [30, 60, 90, 120];
@@ -122,12 +123,10 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
     );
   }
 
-  function addDistractionPack() {
+  function addPack(pack: BlockAction[]) {
     setActions((prev) => {
       const existing = new Set(prev.map((a) => `${a.type}|${a.target}`));
-      const missing = distractionBlockers().filter(
-        (a) => !existing.has(`${a.type}|${a.target}`),
-      );
+      const missing = pack.filter((a) => !existing.has(`${a.type}|${a.target}`));
       return [...prev, ...missing];
     });
   }
@@ -285,11 +284,13 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
                 list="target-suggestions"
                 value={a.target}
                 placeholder={
-                  a.type === "openTab" || a.type === "closeTab"
+                  a.type === "openTab"
                     ? "https://… (paste any link)"
-                    : a.type === "closeApp"
-                      ? "process name, e.g. Discord.exe"
-                      : "app name, full path, or folder"
+                    : a.type === "closeTab"
+                      ? "domain, e.g. youtube.com"
+                      : a.type === "closeApp"
+                        ? "process name, e.g. Discord.exe"
+                        : "app name, full path, or folder"
                 }
                 onChange={(e) => updateAction(i, { target: e.currentTarget.value })}
               />
@@ -316,8 +317,20 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
             </div>
           ))}
           <div className="chip-row">
-            <button type="button" className="chip" onClick={addDistractionPack}>
-              🚫 Kill distractions
+            <button
+              type="button"
+              className="chip"
+              onClick={() => addPack(distractionBlockers())}
+            >
+              🚫 Kill distracting apps
+            </button>
+            <button
+              type="button"
+              className="chip"
+              title="Blocks YouTube, Instagram, X, Reddit, Netflix for the whole block — needs the browser extension (extension folder in the repo)"
+              onClick={() => addPack(siteBlockers())}
+            >
+              🔒 Block distracting sites
             </button>
             <button
               type="button"

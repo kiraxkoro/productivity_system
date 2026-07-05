@@ -38,6 +38,23 @@ export const freshBrowser = (): BlockAction => ({
   target: "chrome.exe",
 });
 
+/** Sites the "Block sites" pack locks out (needs the browser extension —
+ *  see extension/README.md). Domains cover subdomains automatically. */
+export const DISTRACTION_SITES = [
+  "youtube.com",
+  "instagram.com",
+  "x.com",
+  "reddit.com",
+  "netflix.com",
+];
+
+export const siteBlockers = (): BlockAction[] =>
+  DISTRACTION_SITES.map((d) => ({
+    trigger: "onStart",
+    type: "closeTab",
+    target: d,
+  }));
+
 /** Suggestions for "open app" targets (Windows `start` resolves all of these). */
 export const OPEN_SUGGESTIONS: { label: string; target: string }[] = [
   { label: "VS Code", target: "code" },
@@ -64,7 +81,7 @@ export const TEMPLATES: Template[] = [
     emoji: "🧠",
     label: "LeetCode Grind",
     durationMin: 90,
-    hint: "fresh browser with only LeetCode, kills distractions",
+    hint: "fresh browser with only LeetCode, distractions & sites blocked",
     actions: [
       freshBrowser(),
       {
@@ -73,6 +90,7 @@ export const TEMPLATES: Template[] = [
         target: "https://leetcode.com/problemset/",
       },
       ...distractionBlockers(),
+      ...siteBlockers(),
     ],
   },
   {
@@ -89,8 +107,8 @@ export const TEMPLATES: Template[] = [
     emoji: "📚",
     label: "Study Session",
     durationMin: 60,
-    hint: "just kills distractions",
-    actions: [...distractionBlockers()],
+    hint: "kills distracting apps, blocks distracting sites",
+    actions: [...distractionBlockers(), ...siteBlockers()],
   },
   {
     emoji: "✉️",

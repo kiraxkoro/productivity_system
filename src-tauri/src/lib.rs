@@ -1,3 +1,4 @@
+mod blocklist_server;
 mod commands;
 mod db;
 mod scheduler_loop;
@@ -26,6 +27,7 @@ pub fn run() {
             let conn = db::init(app.handle())?;
             app.manage(AppState { db: Mutex::new(conn) });
             scheduler_loop::start(app.handle().clone());
+            blocklist_server::start(app.handle().clone());
             setup_tray(app)?;
             sync_autostart(app.handle());
             // autostart launches us with --hidden: run in the tray, no window
