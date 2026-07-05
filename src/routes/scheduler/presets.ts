@@ -10,7 +10,9 @@ export const DISTRACTIONS: { label: string; process: string }[] = [
   { label: "Steam", process: "steam.exe" },
   { label: "Spotify", process: "Spotify.exe" },
   { label: "Telegram", process: "Telegram.exe" },
-  { label: "WhatsApp", process: "WhatsApp.exe" },
+  // Store-installed WhatsApp runs as WhatsApp.Root.exe + children; the
+  // wildcard catches both it and the classic WhatsApp.exe
+  { label: "WhatsApp", process: "WhatsApp*" },
   { label: "Epic Games", process: "EpicGamesLauncher.exe" },
 ];
 
