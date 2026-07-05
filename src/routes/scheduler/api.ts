@@ -22,6 +22,9 @@ export const closeApp = (processName: string) =>
 export const getAutostart = () => invoke<boolean>("get_autostart");
 export const setAutostart = (enabled: boolean) =>
   invoke<void>("set_autostart", { enabled });
+export const getAllowedBrowser = () => invoke<string>("get_allowed_browser");
+export const setAllowedBrowser = (exe: string) =>
+  invoke<void>("set_allowed_browser", { exe });
 
 // ---- time helpers ----
 export const pad = (n: number) => String(n).padStart(2, "0");

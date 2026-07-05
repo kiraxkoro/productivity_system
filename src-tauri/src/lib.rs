@@ -56,6 +56,8 @@ pub fn run() {
             commands::schedules::close_app,
             commands::system::get_autostart,
             commands::system::set_autostart,
+            commands::system::get_allowed_browser,
+            commands::system::set_allowed_browser,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
