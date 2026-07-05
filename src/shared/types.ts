@@ -58,6 +58,11 @@ App-level (Person A, in commands/system.rs):
 Events emitted from Rust (listen via @tauri-apps/api/event):
   "active-block-changed" -> ScheduleBlock | null   // fired when a block starts/ends
 
+closeTab actions (target = domain, e.g. "youtube.com") are enforced by the
+browser extension in extension/ — it polls GET http://127.0.0.1:48210/blocklist
+(served by src-tauri/src/blocklist_server.rs) and blocks matching tabs while
+the block is active.
+
 Persistence note (2026-07-04): SQLite lives in Rust via `rusqlite` (see src-tauri/src/db.rs —
 it already creates BOTH the schedule_blocks and goals tables). tauri-plugin-sql was removed;
 Person B just implements the four goal commands in commands/goals.rs against db.rs.

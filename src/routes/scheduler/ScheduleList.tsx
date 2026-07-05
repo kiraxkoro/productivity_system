@@ -205,7 +205,7 @@ export default function ScheduleList() {
               checked={killDistractions}
               onChange={(e) => setKillDistractions(e.currentTarget.checked)}
             />
-            auto-close distractions (Discord, Steam, Spotify…)
+            keep distractions closed (Discord, Steam, Spotify… re-killed if reopened)
           </label>
         </div>
       </section>

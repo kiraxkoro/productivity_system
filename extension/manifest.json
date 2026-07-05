@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Focus OS Blocker",
+  "version": "0.1.0",
+  "description": "Blocks the websites your active Focus OS block says to block. No Focus OS running = blocks nothing.",
+  "permissions": ["tabs", "alarms", "storage"],
+  "host_permissions": ["http://127.0.0.1:48210/*"],
+  "background": {
+    "service_worker": "background.js"
+  }
+}
