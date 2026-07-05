@@ -39,6 +39,17 @@ fn tick(app: &AppHandle, last_active: &mut Option<ScheduleBlock>) {
 
     let changed = current.as_ref().map(|b| &b.id) != last_active.as_ref().map(|b| &b.id);
     if !changed {
+        // Enforcement: while a block is active, its closeApp targets are
+        // re-killed every tick — reopening Discord mid-block only buys ~15s.
+        // Browsers are exempt: the fresh-browser close is a one-shot at block
+        // start (re-killing it would also nuke the assigned sites).
+        if let Some(block) = current.as_ref() {
+            for action in block.actions.iter().filter(|a| {
+                a.trigger == "onStart" && a.r#type == "closeApp" && !is_browser(&a.target)
+            }) {
+                let _ = close_process(action.target.trim());
+            }
+        }
         return;
     }
     if let Some(prev) = last_active.as_ref() {
@@ -49,6 +60,15 @@ fn tick(app: &AppHandle, last_active: &mut Option<ScheduleBlock>) {
     }
     let _ = app.emit("active-block-changed", &current);
     *last_active = current;
+}
+
+const BROWSER_PROCESSES: [&str; 4] = ["chrome.exe", "msedge.exe", "brave.exe", "firefox.exe"];
+
+fn is_browser(target: &str) -> bool {
+    let t = target.trim().to_ascii_lowercase();
+    BROWSER_PROCESSES
+        .iter()
+        .any(|b| t == *b || t.ends_with(&format!("\\{b}")))
 }
 
 fn run_actions(block: &ScheduleBlock, trigger: &str) {
