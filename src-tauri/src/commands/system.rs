@@ -7,6 +7,7 @@ use tauri_plugin_autostart::ManagerExt;
 
 pub const ALLOWED_BROWSER_KEY: &str = "allowed_browser";
 pub const PAUSE_UNTIL_KEY: &str = "pause_until_epoch";
+pub const COMMIT_PW_KEY: &str = "commitment_password";
 pub const KNOWN_BROWSERS: [&str; 6] = [
     "chrome.exe",
     "msedge.exe",
@@ -165,6 +166,39 @@ pub fn emergency_pause(state: State<AppState>, minutes: u32) -> Result<String, S
     db::set_setting(&conn, PAUSE_UNTIL_KEY, &until.timestamp().to_string())
         .map_err(|e| e.to_string())?;
     Ok(until.format("%H:%M").to_string())
+}
+
+#[tauri::command]
+pub fn has_commitment_password(state: State<AppState>) -> Result<bool, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    Ok(db::get_setting(&conn, COMMIT_PW_KEY)
+        .map(|p| !p.is_empty())
+        .unwrap_or(false))
+}
+
+/// Set (or clear, with an empty string) the commitment password. Refused
+/// while a block is running — otherwise "remove password, then delete the
+/// block" would be a free exit.
+#[tauri::command]
+pub fn set_commitment_password(state: State<AppState>, password: String) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    if db::get_active_block(&conn).ok().flatten().is_some() {
+        return Err("A block is running — the commitment password can't be changed mid-block.".into());
+    }
+    db::set_setting(&conn, COMMIT_PW_KEY, password.trim()).map_err(|e| e.to_string())
+}
+
+/// True when the given password matches (or when none is set).
+#[tauri::command]
+pub fn verify_commitment_password(
+    state: State<AppState>,
+    password: String,
+) -> Result<bool, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    Ok(match db::get_setting(&conn, COMMIT_PW_KEY) {
+        Some(saved) if !saved.is_empty() => saved == password.trim(),
+        _ => true,
+    })
 }
 
 /// Non-command helper shared with scheduler_loop and blocklist_server.

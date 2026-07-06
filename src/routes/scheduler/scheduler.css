@@ -168,10 +168,18 @@
   height: 15px;
   box-shadow: none;
 }
-.browser-pick {
+.browser-pick,
+.pw-row {
   margin-top: 10px;
   margin-left: 0;
   flex-wrap: wrap;
+}
+.pw-row input[type="password"] {
+  padding: 5px 8px;
+  width: 180px;
+}
+.modal.confession input[type="password"] {
+  margin-top: 6px;
 }
 .browser-pick select {
   padding: 5px 8px;

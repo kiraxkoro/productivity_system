@@ -81,6 +81,9 @@ App-level (Person A, in commands/system.rs):
   set_allowed_browser(exe: String) -> ()         // other browsers are locked out during lockdown blocks
   list_browsers() -> Vec<{name, exe}>            // browsers installed on this machine (registry scan)
   emergency_pause(minutes: u32) -> String        // pauses enforcement + site blocking; returns "HH:MM" resume time
+  has_commitment_password() -> bool
+  set_commitment_password(password: String) -> ()   // refused while a block is active; "" clears
+  verify_commitment_password(password: String) -> bool
 
 Events emitted from Rust (listen via @tauri-apps/api/event):
   "active-block-changed" -> ScheduleBlock | null   // fired when a block starts/ends
