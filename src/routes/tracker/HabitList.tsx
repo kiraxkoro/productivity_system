@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Habit, HabitLog } from "../../shared/types";
+import Ring from "./Ring";
 import {
   createHabit,
   daysInMonth,
@@ -120,25 +121,43 @@ export default function HabitList() {
 
       <div className="stat-row">
         <div className="stat-tile">
-          <div className="stat-label">Today</div>
-          <div className="stat-value">
-            {todayFraction === null ? "—" : fmtPct(todayFraction * 100)}
-          </div>
-          <div className="stat-sub muted">
-            {habits.length === 0
-              ? "no habits yet"
-              : `${logs.filter((l) => l.date === today).length} of ${
-                  habits.length
-                } done`}
+          <Ring
+            pct={todayFraction === null ? 0 : todayFraction * 100}
+            size={130}
+            stroke={11}
+            tone={todayFraction === 1 ? "ok" : "accent"}
+          >
+            <span className="ring-value">
+              {todayFraction === null ? "—" : fmtPct(todayFraction * 100)}
+            </span>
+          </Ring>
+          <div className="stat-text">
+            <div className="stat-label">Today</div>
+            <div className="stat-sub muted">
+              {habits.length === 0
+                ? "no habits yet"
+                : `${logs.filter((l) => l.date === today).length} of ${
+                    habits.length
+                  } done`}
+            </div>
           </div>
         </div>
         <div className="stat-tile">
-          <div className="stat-label">{monthLabel}</div>
-          <div className="stat-value">
-            {monthProgress === null ? "—" : fmtPct(monthProgress * 100)}
-          </div>
-          <div className="stat-sub muted">
-            {monthDone} of {monthSlots} check-ins this month
+          <Ring
+            pct={monthProgress === null ? 0 : monthProgress * 100}
+            size={130}
+            stroke={11}
+            tone={monthProgress === 1 ? "ok" : "accent"}
+          >
+            <span className="ring-value">
+              {monthProgress === null ? "—" : fmtPct(monthProgress * 100)}
+            </span>
+          </Ring>
+          <div className="stat-text">
+            <div className="stat-label">{monthLabel}</div>
+            <div className="stat-sub muted">
+              {monthDone} of {monthSlots} check-ins this month
+            </div>
           </div>
         </div>
       </div>
@@ -167,16 +186,23 @@ export default function HabitList() {
           <ul className="habit-list">
             {habits.map((h) => {
               const done = doneSet.has(`${h.id}|${today}`);
+              const monthCount = logs.filter((l) => l.habitId === h.id).length;
               return (
                 <li key={h.id} className={`habit-row ${done ? "done" : ""}`}>
-                  <label className="item-check">
+                  <label className="habit-check-label">
                     <input
                       type="checkbox"
                       checked={done}
                       onChange={() => void toggle(h)}
                     />
-                    <span className="item-label">{h.title}</span>
+                    <span className="habit-check" aria-hidden="true">
+                      {done ? "✓" : ""}
+                    </span>
+                    <span className="habit-title">{h.title}</span>
                   </label>
+                  <span className="habit-month muted">
+                    {monthCount} day{monthCount === 1 ? "" : "s"} this month
+                  </span>
                   <button
                     className="icon-btn danger"
                     title="Delete habit"

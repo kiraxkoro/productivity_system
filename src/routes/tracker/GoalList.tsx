@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Goal } from "../../shared/types";
 import GoalForm from "./GoalForm";
+import Ring from "./Ring";
 import { extractLines } from "./extractLines";
 import {
   createGoal,
@@ -89,6 +90,28 @@ export default function GoalList() {
     }
   }
 
+  async function renameItem(goal: Goal, index: number, label: string) {
+    // Materialize the label array up to this index (gaps kept "" so they fall
+    // back to "Task N"), set the edited one, then drop trailing blanks so an
+    // all-default list still reports length 0 and hides the Reset button.
+    const labels = Array.from(
+      { length: goal.targetCount },
+      (_, i) => goal.itemLabels[i] ?? "",
+    );
+    labels[index] = label.trim();
+    while (labels.length > 0 && labels[labels.length - 1] === "") labels.pop();
+    // optimistic: show the new name immediately
+    setGoals((prev) =>
+      prev.map((g) => (g.id === goal.id ? { ...g, itemLabels: labels } : g)),
+    );
+    try {
+      await updateGoal({ ...goal, itemLabels: labels });
+    } catch (e) {
+      setLoadError(String(e));
+      await refresh();
+    }
+  }
+
   async function remove(goal: Goal) {
     if (!confirm(`Delete "${goal.title}"?`)) return;
     try {
@@ -112,24 +135,22 @@ export default function GoalList() {
       )}
 
       <section className="card">
-        <h3>
-          🎯 Tasks{" "}
-          <span className="muted">
-            click a task to tick off its items one by one
-          </span>
-        </h3>
-        <button className="primary" onClick={() => setShowForm(true)}>
-          ＋ New task
-        </button>
-      </section>
-
-      <section className="card">
-        <h3>In progress</h3>
+        <div className="section-head">
+          <h3>
+            In progress{" "}
+            <span className="muted">click a task to open its checklist</span>
+          </h3>
+          <button className="primary" onClick={() => setShowForm(true)}>
+            ＋ New task
+          </button>
+        </div>
         {active.length === 0 ? (
-          <p className="muted">
-            No active tasks yet. Add one above — "90 problems in 90 days" is a
-            good start.
-          </p>
+          <div className="empty-state">
+            <div className="empty-emoji">🎯</div>
+            <p className="muted">
+              No active tasks yet. "90 problems in 90 days" is a good start.
+            </p>
+          </div>
         ) : (
           <ul className="goal-list">
             {active.map((g) => (
@@ -141,6 +162,7 @@ export default function GoalList() {
                   setExpandedId(expandedId === g.id ? null : g.id)
                 }
                 onToggleItem={toggleItem}
+                onRenameItem={renameItem}
                 onUpload={uploadLabels}
                 onResetLabels={resetLabels}
                 onDelete={remove}
@@ -163,6 +185,7 @@ export default function GoalList() {
                   setExpandedId(expandedId === g.id ? null : g.id)
                 }
                 onToggleItem={toggleItem}
+                onRenameItem={renameItem}
                 onUpload={uploadLabels}
                 onResetLabels={resetLabels}
                 onDelete={remove}
@@ -187,6 +210,7 @@ function GoalRow({
   expanded,
   onExpand,
   onToggleItem,
+  onRenameItem,
   onUpload,
   onResetLabels,
   onDelete,
@@ -195,28 +219,43 @@ function GoalRow({
   expanded: boolean;
   onExpand: () => void;
   onToggleItem: (g: Goal, index: number) => void;
+  onRenameItem: (g: Goal, index: number, label: string) => void;
   onUpload: (g: Goal, file: File) => void;
   onResetLabels: (g: Goal) => void;
   onDelete: (g: Goal) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const [editing, setEditing] = useState<number | null>(null);
+  const [draft, setDraft] = useState("");
   const pct = percentOf(goal);
   const complete = isComplete(goal);
 
+  function startEdit(i: number) {
+    setDraft(itemLabel(goal, i));
+    setEditing(i);
+  }
+  function commitEdit(i: number) {
+    onRenameItem(goal, i, draft);
+    setEditing(null);
+  }
+
   return (
-    <li className={`goal-row ${complete ? "complete" : ""}`}>
+    <li className={`goal-row ${complete ? "complete" : ""} ${expanded ? "open" : ""}`}>
       <div className="goal-head" onClick={onExpand}>
+        <Ring pct={pct} size={86} stroke={8} tone={complete ? "ok" : "accent"}>
+          <span className="ring-pct">{fmtPct(pct)}</span>
+        </Ring>
         <div className="goal-info">
           <div className="goal-label">
-            <span className="goal-caret">{expanded ? "▾" : "▸"}</span>
             {goal.title}
             {complete && <span className="pill done">done ✓</span>}
           </div>
           <div className="goal-meta muted">
-            {goal.currentCount} / {goal.targetCount} {goal.unit} · {fmtPct(pct)}
+            {goal.currentCount} of {goal.targetCount} {goal.unit}
           </div>
-          <div className="progress">
-            <div className="progress-fill" style={{ width: `${pct}%` }} />
+          <div className="goal-hint muted">
+            <span className="goal-caret">{expanded ? "▾" : "▸"}</span>
+            {expanded ? "hide checklist" : "show checklist"}
           </div>
         </div>
         <div className="goal-actions" onClick={(e) => e.stopPropagation()}>
@@ -235,7 +274,7 @@ function GoalRow({
           <div className="goal-items-bar">
             <span className="muted small">
               Tick off each {goal.unit.replace(/s$/, "") || "item"} as you finish
-              it.
+              it — hover one and click ✎ to rename it.
             </span>
             <span className="goal-items-tools">
               <button
@@ -270,14 +309,38 @@ function GoalRow({
           <ul className="item-grid">
             {Array.from({ length: goal.targetCount }, (_, i) => (
               <li key={i}>
-                <label className="item-check">
+                {editing === i ? (
                   <input
-                    type="checkbox"
-                    checked={goal.checkedItems.includes(i)}
-                    onChange={() => onToggleItem(goal, i)}
+                    className="item-edit"
+                    autoFocus
+                    value={draft}
+                    placeholder={`Task ${i + 1}`}
+                    onChange={(e) => setDraft(e.currentTarget.value)}
+                    onBlur={() => commitEdit(i)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") commitEdit(i);
+                      else if (e.key === "Escape") setEditing(null);
+                    }}
                   />
-                  <span className="item-label">{itemLabel(goal, i)}</span>
-                </label>
+                ) : (
+                  <div className="item-row">
+                    <label className="item-check">
+                      <input
+                        type="checkbox"
+                        checked={goal.checkedItems.includes(i)}
+                        onChange={() => onToggleItem(goal, i)}
+                      />
+                      <span className="item-label">{itemLabel(goal, i)}</span>
+                    </label>
+                    <button
+                      className="item-edit-btn"
+                      title="Rename this item"
+                      onClick={() => startEdit(i)}
+                    >
+                      ✎
+                    </button>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
