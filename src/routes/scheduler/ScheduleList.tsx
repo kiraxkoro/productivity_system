@@ -16,6 +16,7 @@ import {
   describeDays,
   emergencyPause,
   fmtTime,
+  isActiveNow,
   getAllowedBrowser,
   getAutostart,
   listBrowsers,
@@ -49,7 +50,12 @@ export default function ScheduleList() {
   const [isNewDraft, setIsNewDraft] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [flash, setFlash] = useState("");
-  const [showConfession, setShowConfession] = useState(false);
+  // Any escape from an ACTIVE block goes through the confession modal:
+  // pause, stop, delete, disable, or edit. Inactive blocks are free.
+  const [confess, setConfess] = useState<{
+    kind: "pause" | "stop" | "delete" | "toggle" | "edit";
+    block?: ScheduleBlock;
+  } | null>(null);
   const [killDistractions, setKillDistractions] = useState(
     () => localStorage.getItem(KILL_KEY) !== "0",
   );
@@ -223,36 +229,67 @@ export default function ScheduleList() {
     await refresh();
   }
 
-  async function remove(block: ScheduleBlock) {
-    if (!confirm(`Delete "${block.label}"?`)) return;
-    await deleteBlock(block.id).catch((e) => setLoadError(String(e)));
-    await refresh();
-  }
-
-  async function confessAndPause() {
+  async function performConfessed() {
+    const c = confess;
+    setConfess(null);
+    if (!c) return;
     try {
-      const resumeAt = await emergencyPause(5);
-      setShowConfession(false);
-      setFlash(
-        `😮‍💨 5 minutes of weakness granted. Everything unblocks shortly and locks back down at ${fmtTime(resumeAt)}.`,
-      );
-      setTimeout(() => setFlash(""), 8000);
+      switch (c.kind) {
+        case "pause": {
+          const resumeAt = await emergencyPause(5);
+          setFlash(
+            `😮‍💨 5 minutes of weakness granted. Everything unblocks shortly and locks back down at ${fmtTime(resumeAt)}.`,
+          );
+          setTimeout(() => setFlash(""), 8000);
+          break;
+        }
+        case "stop": {
+          const b = c.block!;
+          if (b.oneOffDate) await deleteBlock(b.id);
+          else await setBlockEnabled(b.id, false);
+          break;
+        }
+        case "delete":
+          await deleteBlock(c.block!.id);
+          break;
+        case "toggle":
+          await setBlockEnabled(c.block!.id, false);
+          break;
+        case "edit":
+          openEditForm(c.block!);
+          break;
+      }
+      await refresh();
     } catch (e) {
       setLoadError(String(e));
     }
   }
 
-  async function stopActive(block: ScheduleBlock) {
-    if (block.oneOffDate) {
-      await deleteBlock(block.id).catch((e) => setLoadError(String(e)));
-    } else if (
-      confirm(`Pause "${block.label}"? It won't run again until you re-enable it.`)
-    ) {
-      await setBlockEnabled(block.id, false).catch((e) =>
-        setLoadError(String(e)),
-      );
+  const CONFESS_LABELS: Record<NonNullable<typeof confess>["kind"], string> = {
+    pause: "I confess — give me 5 minutes",
+    stop: "I confess — end the block",
+    delete: "I confess — delete it",
+    toggle: "I confess — switch it off",
+    edit: "I confess — let me edit it",
+  };
+
+  function handleEdit(block: ScheduleBlock) {
+    if (isActiveNow(block)) setConfess({ kind: "edit", block });
+    else openEditForm(block);
+  }
+
+  function handleToggle(block: ScheduleBlock) {
+    if (block.enabled && isActiveNow(block)) setConfess({ kind: "toggle", block });
+    else void toggleEnabled(block);
+  }
+
+  function handleDelete(block: ScheduleBlock) {
+    if (isActiveNow(block)) setConfess({ kind: "delete", block });
+    else if (confirm(`Delete "${block.label}"?`)) {
+      void deleteBlock(block.id)
+        .then(refresh)
+        .catch((e) => setLoadError(String(e)));
     }
-    await refresh();
   }
 
   return (
@@ -269,14 +306,15 @@ export default function ScheduleList() {
       <NowBanner
         active={active}
         next={next}
-        onStop={stopActive}
-        onEmergency={() => setShowConfession(true)}
+        onStop={(b) => setConfess({ kind: "stop", block: b })}
+        onEmergency={() => setConfess({ kind: "pause" })}
       />
 
-      {showConfession && (
+      {confess && (
         <ConfessionModal
-          onConfirm={() => void confessAndPause()}
-          onCancel={() => setShowConfession(false)}
+          actionLabel={CONFESS_LABELS[confess.kind]}
+          onConfirm={() => void performConfessed()}
+          onCancel={() => setConfess(null)}
         />
       )}
 
@@ -352,9 +390,9 @@ export default function ScheduleList() {
               <BlockRow
                 key={b.id}
                 block={b}
-                onEdit={openEditForm}
-                onToggle={toggleEnabled}
-                onDelete={remove}
+                onEdit={handleEdit}
+                onToggle={handleToggle}
+                onDelete={handleDelete}
               />
             ))}
           </ul>
@@ -369,9 +407,9 @@ export default function ScheduleList() {
               <BlockRow
                 key={b.id}
                 block={b}
-                onEdit={openEditForm}
-                onToggle={toggleEnabled}
-                onDelete={remove}
+                onEdit={handleEdit}
+                onToggle={handleToggle}
+                onDelete={handleDelete}
               />
             ))}
           </ul>
@@ -435,9 +473,11 @@ export default function ScheduleList() {
 const WEAKNESS_PHRASE = "I am mentally weak and I choose distraction over my future";
 
 function ConfessionModal({
+  actionLabel,
   onConfirm,
   onCancel,
 }: {
+  actionLabel: string;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -448,9 +488,9 @@ function ConfessionModal({
   return (
     <div className="modal-overlay" onClick={onCancel}>
       <div className="modal confession" onClick={(e) => e.stopPropagation()}>
-        <h2>🆘 Emergency pause</h2>
+        <h2>🆘 Breaking a running block</h2>
         <p className="muted">
-          You get 5 minutes. But first, type this — word for word:
+          The block is live. If you really want out, type this — word for word:
         </p>
         <blockquote className="weakness-phrase">{WEAKNESS_PHRASE}</blockquote>
         <input
@@ -472,7 +512,7 @@ function ConfessionModal({
             disabled={!matches}
             onClick={onConfirm}
           >
-            I confess — give me 5 minutes
+            {actionLabel}
           </button>
         </div>
       </div>
