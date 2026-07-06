@@ -19,9 +19,12 @@ import {
   isActiveNow,
   getAllowedBrowser,
   getAutostart,
+  hasCommitmentPassword,
   listBrowsers,
   setAllowedBrowser,
   setAutostart,
+  setCommitmentPassword,
+  verifyCommitmentPassword,
   humanDuration,
   listBlocks,
   nextBlockToday,
@@ -56,6 +59,8 @@ export default function ScheduleList() {
     kind: "pause" | "stop" | "delete" | "toggle" | "edit";
     block?: ScheduleBlock;
   } | null>(null);
+  const [hasPw, setHasPw] = useState(false);
+  const [pwDraft, setPwDraft] = useState("");
   const [killDistractions, setKillDistractions] = useState(
     () => localStorage.getItem(KILL_KEY) !== "0",
   );
@@ -105,7 +110,25 @@ export default function ScheduleList() {
     listBrowsers()
       .then((found) => found.length > 0 && setBrowserList(found))
       .catch(() => {});
+    hasCommitmentPassword().then(setHasPw).catch(() => {});
   }, []);
+
+  async function savePassword() {
+    try {
+      await setCommitmentPassword(pwDraft);
+      setHasPw(pwDraft.trim().length > 0);
+      setPwDraft("");
+      setFlash(
+        pwDraft.trim()
+          ? "🔑 Commitment password set — breaking a running block now needs the phrase AND the password."
+          : "Commitment password removed.",
+      );
+      setTimeout(() => setFlash(""), 6000);
+    } catch (e) {
+      setLoadError(String(e));
+      setTimeout(() => setLoadError(""), 6000);
+    }
+  }
 
   async function changeBrowser(exe: string) {
     try {
@@ -313,6 +336,7 @@ export default function ScheduleList() {
       {confess && (
         <ConfessionModal
           actionLabel={CONFESS_LABELS[confess.kind]}
+          requirePassword={hasPw}
           onConfirm={() => void performConfessed()}
           onCancel={() => setConfess(null)}
         />
@@ -435,6 +459,25 @@ export default function ScheduleList() {
             />
             start automatically with Windows (recommended)
           </label>
+          <label className="check pw-row">
+            🔑 commitment password {hasPw ? "(set)" : "(not set)"}:
+            <input
+              type="password"
+              value={pwDraft}
+              placeholder={hasPw ? "new password (empty = remove)" : "set one"}
+              onChange={(e) => setPwDraft(e.currentTarget.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void savePassword();
+              }}
+            />
+            <button className="chip" onClick={() => void savePassword()}>
+              save
+            </button>
+            <span className="muted small">
+              — also required to break a running block; can't be changed
+              mid-block
+            </span>
+          </label>
           <label className="check browser-pick">
             your browser:
             <select
@@ -474,17 +517,35 @@ const WEAKNESS_PHRASE = "I am mentally weak and I choose distraction over my fut
 
 function ConfessionModal({
   actionLabel,
+  requirePassword,
   onConfirm,
   onCancel,
 }: {
   actionLabel: string;
+  requirePassword: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
   const [text, setText] = useState("");
+  const [pw, setPw] = useState("");
+  const [pwError, setPwError] = useState("");
   const matches =
     text.trim().replace(/\s+/g, " ").toLowerCase() ===
     WEAKNESS_PHRASE.toLowerCase();
+  const ready = matches && (!requirePassword || pw.length > 0);
+
+  async function attempt() {
+    if (!ready) return;
+    if (requirePassword) {
+      const ok = await verifyCommitmentPassword(pw).catch(() => false);
+      if (!ok) {
+        setPwError("Wrong password. The block stays.");
+        return;
+      }
+    }
+    onConfirm();
+  }
+
   return (
     <div className="modal-overlay" onClick={onCancel}>
       <div className="modal confession" onClick={(e) => e.stopPropagation()}>
@@ -499,9 +560,24 @@ function ConfessionModal({
           placeholder="type it…"
           onChange={(e) => setText(e.currentTarget.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && matches) onConfirm();
+            if (e.key === "Enter") void attempt();
           }}
         />
+        {requirePassword && (
+          <input
+            type="password"
+            value={pw}
+            placeholder="commitment password"
+            onChange={(e) => {
+              setPw(e.currentTarget.value);
+              setPwError("");
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void attempt();
+            }}
+          />
+        )}
+        {pwError && <p className="form-error">{pwError}</p>}
         <div className="modal-footer">
           <button type="button" className="primary" onClick={onCancel}>
             Never mind — back to work
@@ -509,8 +585,8 @@ function ConfessionModal({
           <button
             type="button"
             className="ghost"
-            disabled={!matches}
-            onClick={onConfirm}
+            disabled={!ready}
+            onClick={() => void attempt()}
           >
             {actionLabel}
           </button>

@@ -30,6 +30,12 @@ export const listBrowsers = () =>
 /** Pauses enforcement + site blocking; resolves to the "HH:MM" resume time. */
 export const emergencyPause = (minutes: number) =>
   invoke<string>("emergency_pause", { minutes });
+export const hasCommitmentPassword = () =>
+  invoke<boolean>("has_commitment_password");
+export const setCommitmentPassword = (password: string) =>
+  invoke<void>("set_commitment_password", { password });
+export const verifyCommitmentPassword = (password: string) =>
+  invoke<boolean>("verify_commitment_password", { password });
 
 // ---- time helpers ----
 export const pad = (n: number) => String(n).padStart(2, "0");
