@@ -36,11 +36,13 @@ pub fn start(app: tauri::AppHandle) {
 
 fn build_body(app: &tauri::AppHandle) -> String {
     let state = app.state::<AppState>();
-    let active = state
-        .db
-        .lock()
-        .ok()
-        .and_then(|conn| crate::db::get_active_block(&conn).ok().flatten());
+    let active = state.db.lock().ok().and_then(|conn| {
+        // an emergency pause (typed weakness phrase) unblocks sites too
+        if crate::commands::system::is_paused(&conn) {
+            return None;
+        }
+        crate::db::get_active_block(&conn).ok().flatten()
+    });
 
     match active {
         Some(block) => {

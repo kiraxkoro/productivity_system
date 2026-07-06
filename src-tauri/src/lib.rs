@@ -19,6 +19,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec!["--hidden"]),
@@ -59,6 +60,7 @@ pub fn run() {
             commands::system::get_allowed_browser,
             commands::system::set_allowed_browser,
             commands::system::list_browsers,
+            commands::system::emergency_pause,
             commands::goals::create_goal,
             commands::goals::list_goals,
             commands::goals::update_goal,

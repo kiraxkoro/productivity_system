@@ -6,6 +6,7 @@ use tauri::State;
 use tauri_plugin_autostart::ManagerExt;
 
 pub const ALLOWED_BROWSER_KEY: &str = "allowed_browser";
+pub const PAUSE_UNTIL_KEY: &str = "pause_until_epoch";
 pub const KNOWN_BROWSERS: [&str; 6] = [
     "chrome.exe",
     "msedge.exe",
@@ -152,6 +153,26 @@ pub fn set_allowed_browser(state: State<AppState>, exe: String) -> Result<(), St
     }
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     db::set_setting(&conn, ALLOWED_BROWSER_KEY, &exe).map_err(|e| e.to_string())
+}
+
+/// Emergency pause: the UI makes the user type the weakness phrase first.
+/// Enforcement and site-blocking stop until the returned "HH:MM" time.
+#[tauri::command]
+pub fn emergency_pause(state: State<AppState>, minutes: u32) -> Result<String, String> {
+    let minutes = minutes.clamp(1, 15) as i64; // a breather, not a loophole
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let until = chrono::Local::now() + chrono::Duration::minutes(minutes);
+    db::set_setting(&conn, PAUSE_UNTIL_KEY, &until.timestamp().to_string())
+        .map_err(|e| e.to_string())?;
+    Ok(until.format("%H:%M").to_string())
+}
+
+/// Non-command helper shared with scheduler_loop and blocklist_server.
+pub fn is_paused(conn: &rusqlite::Connection) -> bool {
+    db::get_setting(conn, PAUSE_UNTIL_KEY)
+        .and_then(|v| v.parse::<i64>().ok())
+        .map(|until| chrono::Local::now().timestamp() < until)
+        .unwrap_or(false)
 }
 
 /// Non-command helper shared with scheduler_loop (caller already holds the lock).
