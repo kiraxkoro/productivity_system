@@ -32,6 +32,8 @@ export const BROWSERS: { label: string; process: string }[] = [
   { label: "Edge", process: "msedge.exe" },
   { label: "Brave", process: "brave.exe" },
   { label: "Firefox", process: "firefox.exe" },
+  { label: "Opera", process: "opera.exe" },
+  { label: "Vivaldi", process: "vivaldi.exe" },
 ];
 
 /** Close-the-browser-at-start marker. Pass the user's chosen browser; the

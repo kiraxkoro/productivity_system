@@ -6,8 +6,120 @@ use tauri::State;
 use tauri_plugin_autostart::ManagerExt;
 
 pub const ALLOWED_BROWSER_KEY: &str = "allowed_browser";
-pub const KNOWN_BROWSERS: [&str; 4] =
-    ["chrome.exe", "msedge.exe", "brave.exe", "firefox.exe"];
+pub const KNOWN_BROWSERS: [&str; 6] = [
+    "chrome.exe",
+    "msedge.exe",
+    "brave.exe",
+    "firefox.exe",
+    "opera.exe",
+    "vivaldi.exe",
+];
+
+#[derive(Clone, serde::Serialize)]
+pub struct BrowserInfo {
+    pub name: String,
+    pub exe: String,
+}
+
+/// Browsers actually installed on this machine, scanned once from the
+/// registry's official browser registrations (StartMenuInternet). Any browser
+/// registers itself there, so Opera/Vivaldi/whatever show up without us
+/// hardcoding them. Falls back to KNOWN_BROWSERS when the scan finds nothing.
+pub fn installed_browsers() -> &'static Vec<BrowserInfo> {
+    static CACHE: std::sync::OnceLock<Vec<BrowserInfo>> = std::sync::OnceLock::new();
+    CACHE.get_or_init(scan_browsers)
+}
+
+/// Every browser exe we should lock out (installed ∪ known), lowercase.
+pub fn all_browser_exes() -> Vec<String> {
+    let mut exes: Vec<String> = installed_browsers()
+        .iter()
+        .map(|b| b.exe.clone())
+        .collect();
+    for known in KNOWN_BROWSERS {
+        if !exes.iter().any(|e| e == known) {
+            exes.push(known.to_string());
+        }
+    }
+    exes
+}
+
+#[tauri::command]
+pub fn list_browsers() -> Vec<BrowserInfo> {
+    installed_browsers().clone()
+}
+
+fn scan_browsers() -> Vec<BrowserInfo> {
+    let mut found: Vec<BrowserInfo> = Vec::new();
+    #[cfg(target_os = "windows")]
+    for hive in ["HKLM", "HKCU"] {
+        let root = format!(r"{hive}\SOFTWARE\Clients\StartMenuInternet");
+        let Some(listing) = reg_query(&[&root]) else {
+            continue;
+        };
+        for key in listing.lines().map(str::trim).filter(|l| l.starts_with("HK")) {
+            let Some(command) = reg_default(&format!(r"{key}\shell\open\command")) else {
+                continue;
+            };
+            let path = command.trim().trim_matches('"');
+            let Some(exe) = std::path::Path::new(path)
+                .file_name()
+                .map(|f| f.to_string_lossy().to_ascii_lowercase())
+            else {
+                continue;
+            };
+            if found.iter().any(|b| b.exe == exe) {
+                continue;
+            }
+            let name = reg_default(key).unwrap_or_else(|| {
+                key.rsplit('\\').next().unwrap_or("Browser").to_string()
+            });
+            found.push(BrowserInfo { name, exe });
+        }
+    }
+    if found.is_empty() {
+        found = KNOWN_BROWSERS
+            .iter()
+            .map(|e| BrowserInfo {
+                name: e.trim_end_matches(".exe").to_string(),
+                exe: e.to_string(),
+            })
+            .collect();
+    }
+    found
+}
+
+/// Runs `reg query` and returns stdout, or None on failure. Windows only.
+#[cfg(target_os = "windows")]
+fn reg_query(args: &[&str]) -> Option<String> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let out = std::process::Command::new("reg")
+        .arg("query")
+        .args(args)
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    Some(String::from_utf8_lossy(&out.stdout).to_string())
+}
+
+/// Reads a key's (Default) REG_SZ value. Windows only.
+#[cfg(target_os = "windows")]
+fn reg_default(key: &str) -> Option<String> {
+    let out = reg_query(&[key, "/ve"])?;
+    for line in out.lines() {
+        if let Some((_, value)) = line.split_once("REG_SZ") {
+            let value = value.trim();
+            if !value.is_empty() {
+                return Some(value.to_string());
+            }
+        }
+    }
+    None
+}
 
 #[tauri::command]
 pub fn get_autostart(app: tauri::AppHandle) -> Result<bool, String> {
