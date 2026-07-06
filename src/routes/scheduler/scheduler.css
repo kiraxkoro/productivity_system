@@ -26,6 +26,18 @@
 .oneoff-date {
   margin-top: 8px;
 }
+.plan-day {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+  cursor: pointer;
+}
+.plan-day input[type="date"] {
+  padding: 4px 8px;
+  font-size: 0.82rem;
+}
 .oneoff-date input[type="date"] {
   padding: 6px 10px;
 }

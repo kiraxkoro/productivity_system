@@ -186,6 +186,24 @@ export default function ScheduleList() {
     setIsNewDraft(false);
   }
 
+  /** Calendar entry point: pick a date on the Today card, get a one-off
+   *  block editor pre-set to that day (birthday, exam, one-shot plan). */
+  function openNewFormOn(date: string) {
+    const [y, m, d] = date.split("-").map(Number);
+    const start = nextFiveMinutes();
+    setDraft({
+      id: crypto.randomUUID(),
+      label: "",
+      startTime: start,
+      endTime: addMinutes(start, 60),
+      daysOfWeek: [new Date(y, m - 1, d).getDay()],
+      actions: [],
+      enabled: true,
+      oneOffDate: date,
+    });
+    setIsNewDraft(true);
+  }
+
   async function saveDraft(block: ScheduleBlock) {
     try {
       await (isNewDraft ? createBlock(block) : updateBlock(block));
@@ -281,7 +299,22 @@ export default function ScheduleList() {
       </section>
 
       <section className="card">
-        <h3>📅 Today</h3>
+        <h3>
+          📅 Today
+          <label className="plan-day">
+            <span className="muted small">plan another day →</span>
+            <input
+              type="date"
+              min={todayISO()}
+              value=""
+              title="Pick any date to schedule a one-day block (like a calendar event)"
+              onChange={(e) => {
+                const date = e.currentTarget.value;
+                if (date) openNewFormOn(date);
+              }}
+            />
+          </label>
+        </h3>
         {todayBlocks.length === 0 ? (
           <p className="muted">
             Nothing planned today. Hit a template above — future you says thanks.
@@ -353,8 +386,8 @@ export default function ScheduleList() {
               ))}
             </select>
             <span className="muted small">
-              — this one survives lockdown blocks (put the extension here);
-              all others get closed & kept closed
+              — this one survives lockdown blocks (put the extension here and
+              enable "Allow in Incognito"); all others get closed & kept closed
             </span>
           </label>
         </section>

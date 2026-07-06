@@ -12,6 +12,14 @@ When no block is active — or Focus OS isn't running — it blocks nothing.
 Done. No further setup — it finds the Focus OS app automatically on
 `127.0.0.1:48210` and re-checks every 30 seconds.
 
+## IMPORTANT: also enable it for Incognito
+
+Chrome disables extensions in incognito windows by default, which would make
+incognito a free escape hatch around your blocks. Close it:
+
+1. `chrome://extensions` → **Focus OS Blocker** → **Details**
+2. Toggle **"Allow in Incognito"** ON (Edge calls it "Allow in InPrivate")
+
 ## How it behaves
 
 - While a block with "block website" actions is active, any tab on a blocked
