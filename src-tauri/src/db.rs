@@ -208,6 +208,25 @@ pub fn get_active_block(conn: &Connection) -> rusqlite::Result<Option<ScheduleBl
         .max_by(|a, b| a.start_time.cmp(&b.start_time)))
 }
 
+/// The next block still ahead of us today, if any (for the 5-minute warning).
+pub fn get_next_block_today(conn: &Connection) -> rusqlite::Result<Option<ScheduleBlock>> {
+    let now = Local::now();
+    let weekday = now.weekday().num_days_from_sunday() as u8;
+    let today = now.format("%Y-%m-%d").to_string();
+    let hhmm = now.format("%H:%M").to_string();
+
+    let blocks = list_blocks(conn)?;
+    Ok(blocks
+        .into_iter()
+        .filter(|b| b.enabled)
+        .filter(|b| b.start_time > hhmm)
+        .filter(|b| match &b.one_off_date {
+            Some(date) => *date == today,
+            None => b.days_of_week.contains(&weekday),
+        })
+        .min_by(|a, b| a.start_time.cmp(&b.start_time)))
+}
+
 pub fn get_setting(conn: &Connection, key: &str) -> Option<String> {
     conn.query_row(
         "SELECT value FROM settings WHERE key = ?1",

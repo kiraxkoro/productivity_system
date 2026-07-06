@@ -14,6 +14,7 @@ import {
   createBlock,
   deleteBlock,
   describeDays,
+  emergencyPause,
   fmtTime,
   getAllowedBrowser,
   getAutostart,
@@ -48,6 +49,7 @@ export default function ScheduleList() {
   const [isNewDraft, setIsNewDraft] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [flash, setFlash] = useState("");
+  const [showConfession, setShowConfession] = useState(false);
   const [killDistractions, setKillDistractions] = useState(
     () => localStorage.getItem(KILL_KEY) !== "0",
   );
@@ -227,6 +229,19 @@ export default function ScheduleList() {
     await refresh();
   }
 
+  async function confessAndPause() {
+    try {
+      const resumeAt = await emergencyPause(5);
+      setShowConfession(false);
+      setFlash(
+        `😮‍💨 5 minutes of weakness granted. Everything unblocks shortly and locks back down at ${fmtTime(resumeAt)}.`,
+      );
+      setTimeout(() => setFlash(""), 8000);
+    } catch (e) {
+      setLoadError(String(e));
+    }
+  }
+
   async function stopActive(block: ScheduleBlock) {
     if (block.oneOffDate) {
       await deleteBlock(block.id).catch((e) => setLoadError(String(e)));
@@ -251,7 +266,19 @@ export default function ScheduleList() {
 
       {flash && <div className="banner ok">{flash}</div>}
 
-      <NowBanner active={active} next={next} onStop={stopActive} />
+      <NowBanner
+        active={active}
+        next={next}
+        onStop={stopActive}
+        onEmergency={() => setShowConfession(true)}
+      />
+
+      {showConfession && (
+        <ConfessionModal
+          onConfirm={() => void confessAndPause()}
+          onCancel={() => setShowConfession(false)}
+        />
+      )}
 
       <section className="card">
         <h3>
@@ -405,14 +432,64 @@ export default function ScheduleList() {
   );
 }
 
+const WEAKNESS_PHRASE = "I am mentally weak and I choose distraction over my future";
+
+function ConfessionModal({
+  onConfirm,
+  onCancel,
+}: {
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const [text, setText] = useState("");
+  const matches =
+    text.trim().replace(/\s+/g, " ").toLowerCase() ===
+    WEAKNESS_PHRASE.toLowerCase();
+  return (
+    <div className="modal-overlay" onClick={onCancel}>
+      <div className="modal confession" onClick={(e) => e.stopPropagation()}>
+        <h2>🆘 Emergency pause</h2>
+        <p className="muted">
+          You get 5 minutes. But first, type this — word for word:
+        </p>
+        <blockquote className="weakness-phrase">{WEAKNESS_PHRASE}</blockquote>
+        <input
+          autoFocus
+          value={text}
+          placeholder="type it…"
+          onChange={(e) => setText(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && matches) onConfirm();
+          }}
+        />
+        <div className="modal-footer">
+          <button type="button" className="primary" onClick={onCancel}>
+            Never mind — back to work
+          </button>
+          <button
+            type="button"
+            className="ghost"
+            disabled={!matches}
+            onClick={onConfirm}
+          >
+            I confess — give me 5 minutes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function NowBanner({
   active,
   next,
   onStop,
+  onEmergency,
 }: {
   active: ScheduleBlock | null;
   next: ScheduleBlock | null;
   onStop: (b: ScheduleBlock) => void;
+  onEmergency: () => void;
 }) {
   if (active) {
     const now = new Date();
@@ -436,9 +513,18 @@ function NowBanner({
             <div className="progress-fill" style={{ width: `${pct}%` }} />
           </div>
         </div>
-        <button className="ghost" onClick={() => onStop(active)}>
-          {active.oneOffDate ? "Stop" : "Pause"}
-        </button>
+        <div className="now-buttons">
+          <button
+            className="ghost"
+            title="5-minute emergency pause — you'll have to type the weakness phrase"
+            onClick={onEmergency}
+          >
+            🆘 5 min
+          </button>
+          <button className="ghost" onClick={() => onStop(active)}>
+            {active.oneOffDate ? "Stop" : "Pause"}
+          </button>
+        </div>
       </div>
     );
   }

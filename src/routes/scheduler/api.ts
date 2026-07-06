@@ -27,6 +27,9 @@ export const setAllowedBrowser = (exe: string) =>
   invoke<void>("set_allowed_browser", { exe });
 export const listBrowsers = () =>
   invoke<{ name: string; exe: string }[]>("list_browsers");
+/** Pauses enforcement + site blocking; resolves to the "HH:MM" resume time. */
+export const emergencyPause = (minutes: number) =>
+  invoke<string>("emergency_pause", { minutes });
 
 // ---- time helpers ----
 export const pad = (n: number) => String(n).padStart(2, "0");

@@ -13,29 +13,44 @@
 // workspace for you.
 
 use crate::commands::schedules::{close_process, open_target};
-use crate::commands::system::{all_browser_exes, allowed_browser};
+use crate::commands::system::{all_browser_exes, allowed_browser, is_paused};
 use crate::db::{self, BlockAction, ScheduleBlock};
 use crate::AppState;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
 const POLL_SECS: u64 = 15;
+const WARN_MINUTES: i32 = 5;
 
 pub fn start(app: AppHandle) {
     std::thread::spawn(move || {
         // Keeps the full block (not just the id) so onEnd actions still fire
         // after an expired one-off block has been deleted from the table.
         let mut last_active: Option<ScheduleBlock> = None;
+        // "block-id|date" we already sent the heads-up notification for
+        let mut warned_for: Option<String> = None;
         loop {
-            tick(&app, &mut last_active);
+            tick(&app, &mut last_active, &mut warned_for);
             std::thread::sleep(Duration::from_secs(POLL_SECS));
         }
     });
 }
 
-fn tick(app: &AppHandle, last_active: &mut Option<ScheduleBlock>) {
+fn hhmm_to_minutes(hhmm: &str) -> i32 {
+    let mut parts = hhmm.split(':');
+    let h: i32 = parts.next().and_then(|p| p.parse().ok()).unwrap_or(0);
+    let m: i32 = parts.next().and_then(|p| p.parse().ok()).unwrap_or(0);
+    h * 60 + m
+}
+
+fn notify(app: &AppHandle, title: &str, body: &str) {
+    use tauri_plugin_notification::NotificationExt;
+    let _ = app.notification().builder().title(title).body(body).show();
+}
+
+fn tick(app: &AppHandle, last_active: &mut Option<ScheduleBlock>, warned_for: &mut Option<String>) {
     let state = app.state::<AppState>();
-    let (current, allowed) = {
+    let (current, next, allowed, paused) = {
         let conn = match state.db.lock() {
             Ok(c) => c,
             Err(_) => return,
@@ -43,9 +58,27 @@ fn tick(app: &AppHandle, last_active: &mut Option<ScheduleBlock>) {
         let _ = db::delete_expired_one_offs(&conn);
         (
             db::get_active_block(&conn).unwrap_or(None),
+            db::get_next_block_today(&conn).unwrap_or(None),
             allowed_browser(&conn),
+            is_paused(&conn),
         )
     };
+
+    // Heads-up before the hammer drops: "wrap up, lockdown incoming".
+    if let Some(nb) = &next {
+        let now = chrono::Local::now();
+        let mins_until = hhmm_to_minutes(&nb.start_time)
+            - hhmm_to_minutes(&now.format("%H:%M").to_string());
+        let key = format!("{}|{}", nb.id, now.format("%Y-%m-%d"));
+        if (1..=WARN_MINUTES).contains(&mins_until) && warned_for.as_deref() != Some(&key) {
+            notify(
+                app,
+                &format!("⚡ {} starts in {} min", nb.label, mins_until),
+                "Wrap up — lockdown incoming.",
+            );
+            *warned_for = Some(key);
+        }
+    }
 
     let changed = current.as_ref().map(|b| &b.id) != last_active.as_ref().map(|b| &b.id);
     if !changed {
@@ -53,6 +86,10 @@ fn tick(app: &AppHandle, last_active: &mut Option<ScheduleBlock>) {
         // every tick (reopening Discord buys ~15s), and if the block locks
         // the browser down, the non-chosen browsers stay dead too. Only the
         // chosen browser is exempt — re-killing it would nuke the work sites.
+        // An emergency pause (typed weakness phrase) silences all of it.
+        if paused {
+            return;
+        }
         if let Some(block) = current.as_ref() {
             for action in block.actions.iter().filter(|a| {
                 a.trigger == "onStart"
@@ -69,9 +106,20 @@ fn tick(app: &AppHandle, last_active: &mut Option<ScheduleBlock>) {
     }
     if let Some(prev) = last_active.as_ref() {
         run_actions(prev, "onEnd", &allowed);
+        let focused = hhmm_to_minutes(&prev.end_time) - hhmm_to_minutes(&prev.start_time);
+        notify(
+            app,
+            &format!("✅ {} done", prev.label),
+            &format!("{focused} minutes focused. Future you says thanks."),
+        );
     }
     if let Some(block) = current.as_ref() {
         run_actions(block, "onStart", &allowed);
+        notify(
+            app,
+            &format!("🔒 {}", block.label),
+            &format!("Locked in until {}.", block.end_time),
+        );
     }
     let _ = app.emit("active-block-changed", &current);
     *last_active = current;
