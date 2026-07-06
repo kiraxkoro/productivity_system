@@ -123,7 +123,9 @@ pub fn close_process(name: &str) -> Result<(), String> {
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        let exe = if name.to_ascii_lowercase().ends_with(".exe") {
+        // Wildcards pass through untouched: Store apps often run under expanded
+        // names ("WhatsApp*" matches WhatsApp.Root.exe and its UI children).
+        let exe = if name.contains('*') || name.to_ascii_lowercase().ends_with(".exe") {
             name.to_string()
         } else {
             format!("{name}.exe")
@@ -133,8 +135,12 @@ pub fn close_process(name: &str) -> Result<(), String> {
             .creation_flags(CREATE_NO_WINDOW)
             .output()
             .map_err(|e| e.to_string())?;
-        // taskkill exits 128 when no such process exists
-        if out.status.success() || out.status.code() == Some(128) {
+        // 128 = no such process (already closed). Tree kills of Store apps can
+        // exit non-zero after killing everything visible, so any SUCCESS counts.
+        if out.status.success()
+            || out.status.code() == Some(128)
+            || String::from_utf8_lossy(&out.stdout).contains("SUCCESS")
+        {
             Ok(())
         } else {
             Err(String::from_utf8_lossy(&out.stderr).trim().to_string())

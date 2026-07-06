@@ -1,13 +1,21 @@
-// Person A: create/edit a schedule block. Designed so the lazy path is always
-// one click away: duration chips, day shortcuts, prebuilt action packs.
+// Person A: create/edit a schedule block. Lazy-first: the lockdown defaults
+// (fresh browser + close apps + block sites) are ON for new blocks — the user
+// flips OFF what they don't want instead of having to know what to add.
 
 import { useEffect, useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import type { BlockAction, ScheduleBlock } from "../../shared/types";
-import { addMinutes, DAY_LETTERS, todayISO, toMinutes } from "./api";
+import {
+  addMinutes,
+  DAY_LETTERS,
+  getAllowedBrowser,
+  todayISO,
+  toMinutes,
+} from "./api";
 import {
   BROWSERS,
   DISTRACTIONS,
+  DISTRACTION_SITES,
   distractionBlockers,
   freshBrowser,
   OPEN_SUGGESTIONS,
@@ -41,14 +49,86 @@ const DAY_SHORTCUTS: { label: string; days: number[] }[] = [
   { label: "Weekend", days: [0, 6] },
 ];
 
+const keyOf = (a: BlockAction) =>
+  `${a.trigger}|${a.type}|${a.target.trim().toLowerCase()}`;
+
+/** If every action of `pack` is present, report it and strip one copy of each. */
+function extractPack(
+  actions: BlockAction[],
+  pack: BlockAction[],
+): { present: boolean; rest: BlockAction[] } {
+  const present = pack.every((p) => actions.some((a) => keyOf(a) === keyOf(p)));
+  if (!present) return { present: false, rest: actions };
+  const toRemove = new Set(pack.map(keyOf));
+  const rest = actions.filter((a) => {
+    const k = keyOf(a);
+    if (toRemove.has(k)) {
+      toRemove.delete(k);
+      return false;
+    }
+    return true;
+  });
+  return { present: true, rest };
+}
+
+/** Fix the classic typos so "youtube,com" can never break a block again. */
+function normalizeCustom(a: BlockAction): BlockAction {
+  let t = a.target.trim();
+  if (a.type === "openTab" || a.type === "closeTab") {
+    t = t.replace(/,/g, "."); // commas in web addresses are always dot typos
+  }
+  if (a.type === "closeTab") {
+    // store bare domains: "https://www.YouTube.com/watch" -> "youtube.com"
+    t = t
+      .toLowerCase()
+      .replace(/^https?:\/\//, "")
+      .replace(/^www\./, "")
+      .split(/[/?#]/)[0];
+  }
+  if (a.type === "openTab" && t && !/^[a-z][a-z0-9+.-]*:/i.test(t)) {
+    t = "https://" + t;
+  }
+  return { ...a, target: t };
+}
+
 export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
   const [label, setLabel] = useState(initial.label);
   const [startTime, setStartTime] = useState(initial.startTime);
   const [endTime, setEndTime] = useState(initial.endTime);
   const [oneOff, setOneOff] = useState(initial.oneOffDate !== null);
   const [days, setDays] = useState<number[]>(initial.daysOfWeek);
-  const [actions, setActions] = useState<BlockAction[]>(initial.actions);
   const [error, setError] = useState("");
+
+  // The user's chosen browser (others get locked out during blocks).
+  const [allowedBrowser, setAllowedBrowserState] = useState("chrome.exe");
+  useEffect(() => {
+    getAllowedBrowser().then(setAllowedBrowserState).catch(() => {});
+  }, []);
+
+  // Split the incoming actions into the three lockdown packs + custom rows.
+  // Brand-new empty blocks get full lockdown ON — that's the whole point.
+  // Any closeApp aimed at a browser counts as the fresh-browser flag,
+  // regardless of WHICH browser an older block targeted.
+  const [initialSplit] = useState(() => {
+    const browserProcs = BROWSERS.map((b) => b.process.toLowerCase());
+    const isBrowserClose = (a: BlockAction) =>
+      a.type === "closeApp" &&
+      browserProcs.includes(a.target.trim().toLowerCase());
+    const blank = isNew && initial.actions.length === 0;
+    const withoutFresh = initial.actions.filter((a) => !isBrowserClose(a));
+    const a = extractPack(withoutFresh, distractionBlockers());
+    const s = extractPack(a.rest, siteBlockers());
+    return {
+      fresh: blank || initial.actions.some(isBrowserClose),
+      apps: blank || a.present,
+      sites: blank || s.present,
+      custom: s.rest.map((x) => ({ ...x })),
+    };
+  });
+  const [fresh, setFresh] = useState(initialSplit.fresh);
+  const [apps, setApps] = useState(initialSplit.apps);
+  const [sites, setSites] = useState(initialSplit.sites);
+  const [actions, setActions] = useState<BlockAction[]>(initialSplit.custom);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -63,7 +143,19 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
     { name: "All files", extensions: ["*"] },
   ];
 
-  /** Lazy path: "+ App…" opens the native picker, the action adds itself. */
+  function toggleDay(d: number) {
+    setOneOff(false);
+    setDays((prev) =>
+      prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d],
+    );
+  }
+
+  function updateAction(index: number, patch: Partial<BlockAction>) {
+    setActions((prev) =>
+      prev.map((a, i) => (i === index ? { ...a, ...patch } : a)),
+    );
+  }
+
   async function pickApp() {
     try {
       const picked = await openDialog({
@@ -110,27 +202,6 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
     }
   }
 
-  function toggleDay(d: number) {
-    setOneOff(false);
-    setDays((prev) =>
-      prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d],
-    );
-  }
-
-  function updateAction(index: number, patch: Partial<BlockAction>) {
-    setActions((prev) =>
-      prev.map((a, i) => (i === index ? { ...a, ...patch } : a)),
-    );
-  }
-
-  function addPack(pack: BlockAction[]) {
-    setActions((prev) => {
-      const existing = new Set(prev.map((a) => `${a.type}|${a.target}`));
-      const missing = pack.filter((a) => !existing.has(`${a.type}|${a.target}`));
-      return [...prev, ...missing];
-    });
-  }
-
   function submit() {
     if (toMinutes(endTime) <= toMinutes(startTime)) {
       setError("End time must be after start time (blocks can't cross midnight yet).");
@@ -140,8 +211,17 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
       setError('Pick at least one day, or choose "Just today".');
       return;
     }
-    if (actions.some((a) => !a.target.trim())) {
-      setError("Every action needs a target (app name or URL) — or remove the empty row.");
+    const custom = actions.map(normalizeCustom);
+    if (custom.some((a) => !a.target)) {
+      setError("Every row needs a target (app, URL or domain) — or remove the empty row.");
+      return;
+    }
+    const badWeb = custom.find(
+      (a) =>
+        (a.type === "openTab" || a.type === "closeTab") && !a.target.includes("."),
+    );
+    if (badWeb) {
+      setError(`"${badWeb.target}" doesn't look like a web address — it needs a dot, e.g. youtube.com`);
       return;
     }
     onSave({
@@ -152,7 +232,12 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
       daysOfWeek: oneOff
         ? [new Date().getDay()]
         : [...days].sort((a, b) => a - b),
-      actions: actions.map((a) => ({ ...a, target: a.target.trim() })),
+      actions: [
+        ...(fresh ? [freshBrowser(allowedBrowser)] : []),
+        ...(apps ? distractionBlockers() : []),
+        ...(sites ? siteBlockers() : []),
+        ...custom,
+      ],
       oneOffDate: oneOff ? todayISO() : null,
     });
   }
@@ -244,11 +329,73 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
 
         <div className="field">
           <span>
-            Do automatically{" "}
-            <em className="muted">— apps/sites opened or closed for you</em>
+            Lockdown{" "}
+            <em className="muted">— on by default, flip off what you don't want</em>
+          </span>
+          <label className="lockdown-row">
+            <span className="lockdown-text">
+              <b>🌐 Browser lockdown</b>
+              <small>
+                {BROWSERS.find((b) => b.process === allowedBrowser)?.label ??
+                  "Your browser"}{" "}
+                restarts clean (old tabs gone) — every other browser is closed
+                and kept closed for the whole block
+              </small>
+            </span>
+            <span className="switch">
+              <input
+                type="checkbox"
+                checked={fresh}
+                onChange={(e) => setFresh(e.currentTarget.checked)}
+              />
+              <span className="slider" />
+            </span>
+          </label>
+          <label className="lockdown-row">
+            <span className="lockdown-text">
+              <b>🚫 Close distracting apps</b>
+              <small>
+                {DISTRACTIONS.map((d) => d.label).join(", ")} — killed at start
+                and re-killed if you reopen them
+              </small>
+            </span>
+            <span className="switch">
+              <input
+                type="checkbox"
+                checked={apps}
+                onChange={(e) => setApps(e.currentTarget.checked)}
+              />
+              <span className="slider" />
+            </span>
+          </label>
+          <label className="lockdown-row">
+            <span className="lockdown-text">
+              <b>🔒 Block distracting sites</b>
+              <small>
+                {DISTRACTION_SITES.join(", ")} — walled for the whole block
+                (needs the browser extension)
+              </small>
+            </span>
+            <span className="switch">
+              <input
+                type="checkbox"
+                checked={sites}
+                onChange={(e) => setSites(e.currentTarget.checked)}
+              />
+              <span className="slider" />
+            </span>
+          </label>
+        </div>
+
+        <div className="field">
+          <span>
+            Also do this{" "}
+            <em className="muted">— open your work, block extra sites, anything</em>
           </span>
           {actions.length === 0 && (
-            <p className="muted small">No actions yet — this block is just a timer.</p>
+            <p className="muted small">
+              Nothing custom yet — add your work sites/apps below.
+            </p>
           )}
           {actions.map((a, i) => (
             <div className="action-row" key={i}>
@@ -320,33 +467,27 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
             <button
               type="button"
               className="chip"
-              onClick={() => addPack(distractionBlockers())}
-            >
-              🚫 Kill distracting apps
-            </button>
-            <button
-              type="button"
-              className="chip"
-              title="Blocks YouTube, Instagram, X, Reddit, Netflix for the whole block — needs the browser extension (extension folder in the repo)"
-              onClick={() => addPack(siteBlockers())}
-            >
-              🔒 Block distracting sites
-            </button>
-            <button
-              type="button"
-              className="chip"
-              title="Closes the whole browser at block start; your open-website actions then relaunch it showing only your assigned sites"
               onClick={() =>
-                setActions((prev) =>
-                  prev.some(
-                    (a) => a.type === "closeApp" && a.target === freshBrowser().target,
-                  )
-                    ? prev
-                    : [...prev, freshBrowser()],
-                )
+                setActions((prev) => [
+                  ...prev,
+                  { trigger: "onStart", type: "openTab", target: "https://" },
+                ])
               }
             >
-              🌐 Fresh browser
+              ＋ Open website
+            </button>
+            <button
+              type="button"
+              className="chip"
+              title="Wall off one more site during this block"
+              onClick={() =>
+                setActions((prev) => [
+                  ...prev,
+                  { trigger: "onStart", type: "closeTab", target: "" },
+                ])
+              }
+            >
+              ＋ Block a site
             </button>
             <button
               type="button"
@@ -363,18 +504,6 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
               onClick={() => void pickFolder()}
             >
               ＋ Folder…
-            </button>
-            <button
-              type="button"
-              className="chip"
-              onClick={() =>
-                setActions((prev) => [
-                  ...prev,
-                  { trigger: "onStart", type: "openTab", target: "https://" },
-                ])
-              }
-            >
-              ＋ Website
             </button>
             <button
               type="button"

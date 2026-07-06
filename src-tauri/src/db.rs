@@ -38,6 +38,11 @@ CREATE TABLE IF NOT EXISTS schedule_blocks (
     one_off_date TEXT                      -- NULL = repeats weekly
 );
 
+CREATE TABLE IF NOT EXISTS settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS goals (
     id            TEXT PRIMARY KEY,
     title         TEXT NOT NULL,
@@ -201,6 +206,24 @@ pub fn get_active_block(conn: &Connection) -> rusqlite::Result<Option<ScheduleBl
         })
         // if blocks overlap, the one that started most recently wins
         .max_by(|a, b| a.start_time.cmp(&b.start_time)))
+}
+
+pub fn get_setting(conn: &Connection, key: &str) -> Option<String> {
+    conn.query_row(
+        "SELECT value FROM settings WHERE key = ?1",
+        [key],
+        |row| row.get(0),
+    )
+    .ok()
+}
+
+pub fn set_setting(conn: &Connection, key: &str, value: &str) -> rusqlite::Result<()> {
+    conn.execute(
+        "INSERT INTO settings (key, value) VALUES (?1, ?2)
+         ON CONFLICT(key) DO UPDATE SET value = ?2",
+        [key, value],
+    )?;
+    Ok(())
 }
 
 /// One-off blocks ("Focus Now") whose time has passed are garbage — remove them

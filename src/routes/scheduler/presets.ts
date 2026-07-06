@@ -10,7 +10,9 @@ export const DISTRACTIONS: { label: string; process: string }[] = [
   { label: "Steam", process: "steam.exe" },
   { label: "Spotify", process: "Spotify.exe" },
   { label: "Telegram", process: "Telegram.exe" },
-  { label: "WhatsApp", process: "WhatsApp.exe" },
+  // Store-installed WhatsApp runs as WhatsApp.Root.exe + children; the
+  // wildcard catches both it and the classic WhatsApp.exe
+  { label: "WhatsApp", process: "WhatsApp*" },
   { label: "Epic Games", process: "EpicGamesLauncher.exe" },
 ];
 
@@ -32,10 +34,12 @@ export const BROWSERS: { label: string; process: string }[] = [
   { label: "Firefox", process: "firefox.exe" },
 ];
 
-export const freshBrowser = (): BlockAction => ({
+/** Close-the-browser-at-start marker. Pass the user's chosen browser; the
+ *  scheduler also locks out every OTHER browser while the block runs. */
+export const freshBrowser = (browserExe = "chrome.exe"): BlockAction => ({
   trigger: "onStart",
   type: "closeApp",
-  target: "chrome.exe",
+  target: browserExe,
 });
 
 /** Sites the "Block sites" pack locks out (needs the browser extension —

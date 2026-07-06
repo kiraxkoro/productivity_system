@@ -56,6 +56,8 @@ pub fn run() {
             commands::schedules::close_app,
             commands::system::get_autostart,
             commands::system::set_autostart,
+            commands::system::get_allowed_browser,
+            commands::system::set_allowed_browser,
             commands::goals::create_goal,
             commands::goals::list_goals,
             commands::goals::update_goal,

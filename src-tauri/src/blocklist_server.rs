@@ -64,8 +64,9 @@ fn build_body(app: &tauri::AppHandle) -> String {
 }
 
 /// "https://www.YouTube.com/watch?v=x" -> "youtube.com"
+/// Commas are always dot typos in web targets, so fix them here too.
 fn normalize_domain(target: &str) -> String {
-    let t = target.trim().to_ascii_lowercase();
+    let t = target.trim().to_ascii_lowercase().replace(',', ".");
     let t = t.strip_prefix("https://").unwrap_or(&t);
     let t = t.strip_prefix("http://").unwrap_or(t);
     let t = t.strip_prefix("www.").unwrap_or(t);
