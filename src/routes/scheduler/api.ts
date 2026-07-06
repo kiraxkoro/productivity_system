@@ -25,6 +25,8 @@ export const setAutostart = (enabled: boolean) =>
 export const getAllowedBrowser = () => invoke<string>("get_allowed_browser");
 export const setAllowedBrowser = (exe: string) =>
   invoke<void>("set_allowed_browser", { exe });
+export const listBrowsers = () =>
+  invoke<{ name: string; exe: string }[]>("list_browsers");
 
 // ---- time helpers ----
 export const pad = (n: number) => String(n).padStart(2, "0");

@@ -79,6 +79,7 @@ App-level (Person A, in commands/system.rs):
   set_autostart(enabled: bool) -> ()
   get_allowed_browser() -> String                // e.g. "chrome.exe"; auto-detected from Windows default
   set_allowed_browser(exe: String) -> ()         // other browsers are locked out during lockdown blocks
+  list_browsers() -> Vec<{name, exe}>            // browsers installed on this machine (registry scan)
 
 Events emitted from Rust (listen via @tauri-apps/api/event):
   "active-block-changed" -> ScheduleBlock | null   // fired when a block starts/ends

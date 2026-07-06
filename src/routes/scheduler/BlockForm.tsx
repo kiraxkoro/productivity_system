@@ -95,7 +95,9 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
   const [label, setLabel] = useState(initial.label);
   const [startTime, setStartTime] = useState(initial.startTime);
   const [endTime, setEndTime] = useState(initial.endTime);
-  const [oneOff, setOneOff] = useState(initial.oneOffDate !== null);
+  // null = repeats weekly; "YYYY-MM-DD" = runs once on that date (any date,
+  // not just today — birthdays, exams, one-shot plans)
+  const [oneOffDate, setOneOffDate] = useState<string | null>(initial.oneOffDate);
   const [days, setDays] = useState<number[]>(initial.daysOfWeek);
   const [error, setError] = useState("");
 
@@ -144,10 +146,16 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
   ];
 
   function toggleDay(d: number) {
-    setOneOff(false);
+    setOneOffDate(null);
     setDays((prev) =>
       prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d],
     );
+  }
+
+  /** Local-timezone day-of-week for a "YYYY-MM-DD" string. */
+  function dayOfDate(iso: string): number {
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(y, m - 1, d).getDay();
   }
 
   function updateAction(index: number, patch: Partial<BlockAction>) {
@@ -207,8 +215,12 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
       setError("End time must be after start time (blocks can't cross midnight yet).");
       return;
     }
-    if (!oneOff && days.length === 0) {
-      setError('Pick at least one day, or choose "Just today".');
+    if (!oneOffDate && days.length === 0) {
+      setError('Pick at least one day, or choose "One day only".');
+      return;
+    }
+    if (oneOffDate && oneOffDate < todayISO()) {
+      setError("That date is in the past — pick today or later.");
       return;
     }
     const custom = actions.map(normalizeCustom);
@@ -229,8 +241,8 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
       label: label.trim() || "Focus block",
       startTime,
       endTime,
-      daysOfWeek: oneOff
-        ? [new Date().getDay()]
+      daysOfWeek: oneOffDate
+        ? [dayOfDate(oneOffDate)]
         : [...days].sort((a, b) => a - b),
       actions: [
         ...(fresh ? [freshBrowser(allowedBrowser)] : []),
@@ -238,7 +250,7 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
         ...(sites ? siteBlockers() : []),
         ...custom,
       ],
-      oneOffDate: oneOff ? todayISO() : null,
+      oneOffDate,
     });
   }
 
@@ -294,10 +306,10 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
           <div className="chip-row">
             <button
               type="button"
-              className={`chip ${oneOff ? "on" : ""}`}
-              onClick={() => setOneOff(true)}
+              className={`chip ${oneOffDate ? "on" : ""}`}
+              onClick={() => setOneOffDate(oneOffDate ?? todayISO())}
             >
-              Just today
+              📅 One day only
             </button>
             {DAY_SHORTCUTS.map((s) => (
               <button
@@ -305,7 +317,7 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
                 type="button"
                 className="chip"
                 onClick={() => {
-                  setOneOff(false);
+                  setOneOffDate(null);
                   setDays(s.days);
                 }}
               >
@@ -313,18 +325,32 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
               </button>
             ))}
           </div>
-          <div className="day-row">
-            {DAY_LETTERS.map((letter, d) => (
-              <button
-                key={d}
-                type="button"
-                className={`day ${!oneOff && days.includes(d) ? "on" : ""}`}
-                onClick={() => toggleDay(d)}
-              >
-                {letter}
-              </button>
-            ))}
-          </div>
+          {oneOffDate ? (
+            <div className="chip-row oneoff-date">
+              <input
+                type="date"
+                value={oneOffDate}
+                min={todayISO()}
+                onChange={(e) => setOneOffDate(e.currentTarget.value || todayISO())}
+              />
+              <span className="muted small">
+                runs once on this date, then cleans itself up
+              </span>
+            </div>
+          ) : (
+            <div className="day-row">
+              {DAY_LETTERS.map((letter, d) => (
+                <button
+                  key={d}
+                  type="button"
+                  className={`day ${days.includes(d) ? "on" : ""}`}
+                  onClick={() => toggleDay(d)}
+                >
+                  {letter}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="field">

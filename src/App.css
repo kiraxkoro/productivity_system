@@ -157,3 +157,15 @@ button.ghost:hover {
 .muted {
   color: var(--muted);
 }
+
+/* ---- narrow screens ---- */
+@media (max-width: 640px) {
+  .content {
+    padding: 12px 12px 40px;
+  }
+  .topbar {
+    padding: 10px 12px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+}

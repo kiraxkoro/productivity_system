@@ -10,12 +10,14 @@ import {
   activeBlockOf,
   addMinutes,
   appliesToday,
+  closeApp,
   createBlock,
   deleteBlock,
   describeDays,
   fmtTime,
   getAllowedBrowser,
   getAutostart,
+  listBrowsers,
   setAllowedBrowser,
   setAutostart,
   humanDuration,
@@ -31,7 +33,6 @@ import {
 import {
   BROWSERS,
   distractionBlockers,
-  freshBrowser,
   siteBlockers,
   TEMPLATES,
   type Template,
@@ -46,12 +47,17 @@ export default function ScheduleList() {
   const [draft, setDraft] = useState<ScheduleBlock | null>(null);
   const [isNewDraft, setIsNewDraft] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [flash, setFlash] = useState("");
   const [killDistractions, setKillDistractions] = useState(
     () => localStorage.getItem(KILL_KEY) !== "0",
   );
   // null = backend doesn't support it (e.g. old build) -> card stays hidden
   const [autostart, setAutostartState] = useState<boolean | null>(null);
   const [browser, setBrowserState] = useState("chrome.exe");
+  // scanned from the machine at startup; static list is the fallback
+  const [browserList, setBrowserList] = useState(
+    BROWSERS.map((b) => ({ name: b.label, exe: b.process })),
+  );
   const [, setTick] = useState(0); // 1s heartbeat so countdowns stay live
 
   const refresh = useCallback(async () => {
@@ -88,6 +94,9 @@ export default function ScheduleList() {
       .then(setAutostartState)
       .catch(() => setAutostartState(null));
     getAllowedBrowser().then(setBrowserState).catch(() => {});
+    listBrowsers()
+      .then((found) => found.length > 0 && setBrowserList(found))
+      .catch(() => {});
   }, []);
 
   async function changeBrowser(exe: string) {
@@ -123,20 +132,34 @@ export default function ScheduleList() {
 
   async function focusNow(minutes: number) {
     const start = nowHHMM();
+    const end = addMinutes(start, minutes);
+    // No freshBrowser here: quick focus has nothing to reopen, and killing
+    // the browser someone is about to work in feels like a bug, not a feature.
     const block: ScheduleBlock = {
       id: crypto.randomUUID(),
       label: `Quick Focus (${minutes} min)`,
       startTime: start,
-      endTime: addMinutes(start, minutes),
+      endTime: end,
       daysOfWeek: [new Date().getDay()],
       actions: killDistractions
-        ? [freshBrowser(browser), ...distractionBlockers(), ...siteBlockers()]
+        ? [...distractionBlockers(), ...siteBlockers()]
         : [],
       enabled: true,
       oneOffDate: todayISO(),
     };
     try {
       await createBlock(block);
+      // instant gratification: banner lights up and distraction apps die NOW,
+      // instead of waiting for the next 15s scheduler tick
+      setBlocks((prev) => [...prev, block]);
+      for (const a of block.actions) {
+        if (a.type === "closeApp") void closeApp(a.target).catch(() => {});
+      }
+      setFlash(
+        `🔒 Locked in — ${minutes} min, ends at ${fmtTime(end)}.` +
+          (killDistractions ? " Distracting apps closed, sites blocked." : ""),
+      );
+      setTimeout(() => setFlash(""), 6000);
       await refresh();
     } catch (e) {
       setLoadError(String(e));
@@ -208,6 +231,8 @@ export default function ScheduleList() {
         </div>
       )}
 
+      {flash && <div className="banner ok">{flash}</div>}
+
       <NowBanner active={active} next={next} onStop={stopActive} />
 
       <section className="card">
@@ -227,7 +252,7 @@ export default function ScheduleList() {
               checked={killDistractions}
               onChange={(e) => setKillDistractions(e.currentTarget.checked)}
             />
-            full lockdown — fresh browser, distracting apps & sites blocked
+            lockdown — distracting apps closed & kept closed, sites blocked
           </label>
         </div>
       </section>
@@ -318,9 +343,12 @@ export default function ScheduleList() {
               value={browser}
               onChange={(e) => void changeBrowser(e.currentTarget.value)}
             >
-              {BROWSERS.map((b) => (
-                <option key={b.process} value={b.process}>
-                  {b.label}
+              {(browserList.some((b) => b.exe === browser)
+                ? browserList
+                : [...browserList, { name: browser, exe: browser }]
+              ).map((b) => (
+                <option key={b.exe} value={b.exe}>
+                  {b.name}
                 </option>
               ))}
             </select>

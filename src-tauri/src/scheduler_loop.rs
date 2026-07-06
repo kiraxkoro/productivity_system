@@ -13,7 +13,7 @@
 // workspace for you.
 
 use crate::commands::schedules::{close_process, open_target};
-use crate::commands::system::{allowed_browser, KNOWN_BROWSERS};
+use crate::commands::system::{all_browser_exes, allowed_browser};
 use crate::db::{self, BlockAction, ScheduleBlock};
 use crate::AppState;
 use std::time::Duration;
@@ -79,7 +79,7 @@ fn tick(app: &AppHandle, last_active: &mut Option<ScheduleBlock>) {
 
 fn is_browser(target: &str) -> bool {
     let t = target.trim().to_ascii_lowercase();
-    KNOWN_BROWSERS
+    all_browser_exes()
         .iter()
         .any(|b| t == *b || t.ends_with(&format!("\\{b}")))
 }
@@ -98,7 +98,7 @@ fn wants_browser_lockdown(block: &ScheduleBlock) -> bool {
 }
 
 fn close_other_browsers(allowed: &str) {
-    for b in KNOWN_BROWSERS.iter().filter(|b| **b != allowed) {
+    for b in all_browser_exes().iter().filter(|b| *b != allowed) {
         let _ = close_process(b);
     }
 }
