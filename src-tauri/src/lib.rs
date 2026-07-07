@@ -74,6 +74,11 @@ pub fn run() {
             commands::habits::delete_habit,
             commands::habits::set_habit_done,
             commands::habits::list_habit_logs,
+            commands::progress::get_xp,
+            commands::progress::adjust_xp,
+            commands::progress::list_achievements,
+            commands::progress::unlock_achievement,
+            commands::progress::notify_user,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

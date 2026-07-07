@@ -17,6 +17,8 @@ import {
   percentOf,
   updateGoal,
 } from "./api";
+import { applyTickXp, checkAchievements, XP_PER_TICK } from "./progress";
+import { toast } from "./Toasts";
 
 export default function GoalList() {
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -48,19 +50,23 @@ export default function GoalList() {
   }
 
   async function toggleItem(goal: Goal, index: number) {
-    const checked = goal.checkedItems.includes(index)
-      ? goal.checkedItems.filter((i) => i !== index)
-      : [...goal.checkedItems, index];
+    const ticking = !goal.checkedItems.includes(index);
+    const checked = ticking
+      ? [...goal.checkedItems, index]
+      : goal.checkedItems.filter((i) => i !== index);
     // optimistic: flip locally first so the bar moves the instant you click
-    setGoals((prev) =>
-      prev.map((g) =>
-        g.id === goal.id
-          ? { ...g, checkedItems: checked, currentCount: checked.length }
-          : g,
-      ),
+    const nextGoals = goals.map((g) =>
+      g.id === goal.id
+        ? { ...g, checkedItems: checked, currentCount: checked.length }
+        : g,
     );
+    setGoals(nextGoals);
     try {
       await updateGoal({ ...goal, checkedItems: checked });
+      // done = +10 XP; undone/failed = the 10 comes back off
+      toast(ticking ? "✨" : "↩️", ticking ? `+${XP_PER_TICK} XP` : `−${XP_PER_TICK} XP`);
+      const xp = await applyTickXp(ticking ? XP_PER_TICK : -XP_PER_TICK);
+      await checkAchievements({ goals: nextGoals, xp });
     } catch (e) {
       setLoadError(String(e));
       await refresh();

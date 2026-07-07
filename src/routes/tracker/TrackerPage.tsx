@@ -1,13 +1,16 @@
-// Person B: the Tracker screen — two halves, one place to see progress.
+// Person B: the Tracker screen — three halves, one place to see progress.
 // Tasks = long-running goals with per-item checkboxes.
 // Habits = daily checkmarks with monthly stats.
+// Progress = XP, level ring, achievements (ticks earn +10 XP, unticks −10).
 
 import { useState } from "react";
 import GoalList from "./GoalList";
 import HabitList from "./HabitList";
+import ProgressPanel from "./ProgressPanel";
+import ToastHost from "./Toasts";
 import "./tracker.css";
 
-type SubTab = "tasks" | "habits";
+type SubTab = "tasks" | "habits" | "progress";
 
 export default function TrackerPage() {
   const [sub, setSub] = useState<SubTab>("tasks");
@@ -27,8 +30,21 @@ export default function TrackerPage() {
         >
           🔁 Habit Tracker
         </button>
+        <button
+          className={sub === "progress" ? "subtab on" : "subtab"}
+          onClick={() => setSub("progress")}
+        >
+          🏆 Progress
+        </button>
       </nav>
-      {sub === "tasks" ? <GoalList /> : <HabitList />}
+      {sub === "tasks" ? (
+        <GoalList />
+      ) : sub === "habits" ? (
+        <HabitList />
+      ) : (
+        <ProgressPanel />
+      )}
+      <ToastHost />
     </div>
   );
 }

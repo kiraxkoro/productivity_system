@@ -28,6 +28,13 @@ export interface HabitLog {
   date: string; // "YYYY-MM-DD" — presence means done that day
 }
 
+// --- XP / levels / achievements (Person B, 2026-07-07) ---
+// +10 XP per ticked task item or habit; -10 when unticked. 100 XP per level.
+export interface Achievement {
+  id: string; // catalog id (title/emoji live in src/routes/tracker/progress.ts)
+  unlockedAt: string; // ISO date
+}
+
 // --- Scheduler (Person A) ---
 export interface ScheduleBlock {
   id: string;
@@ -63,6 +70,13 @@ Person B implements (in commands/habits.rs, added 2026-07-05):
   delete_habit(id: String) -> ()
   set_habit_done(habit_id: String, date: String, done: bool) -> ()
   list_habit_logs(from: String, to: String) -> Vec<HabitLog>   // inclusive date range
+
+Person B implements (in commands/progress.rs, added 2026-07-07):
+  get_xp() -> i64
+  adjust_xp(delta: i64) -> i64                     // clamped at 0; returns new total
+  list_achievements() -> Vec<Achievement>
+  unlock_achievement(id: String) -> bool           // true only on first unlock
+  notify_user(title: String, body: String) -> ()   // OS notification (levels/achievements)
 
 Person A implements (in commands/schedules.rs):
   create_schedule_block(block: ScheduleBlock) -> ScheduleBlock

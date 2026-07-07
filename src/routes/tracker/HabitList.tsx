@@ -15,6 +15,8 @@ import {
   setHabitDone,
   todayISO,
 } from "./api";
+import { applyTickXp, checkAchievements, XP_PER_TICK } from "./progress";
+import { toast } from "./Toasts";
 
 export default function HabitList() {
   const [habits, setHabits] = useState<Habit[]>([]);
@@ -81,9 +83,11 @@ export default function HabitList() {
       return;
     }
     try {
-      await createHabit({ id: crypto.randomUUID(), title, createdDate: today });
+      const habit = { id: crypto.randomUUID(), title, createdDate: today };
+      await createHabit(habit);
       setNewTitle("");
       await refresh();
+      void checkAchievements({ habits: [...habits, habit] });
     } catch (e) {
       setLoadError(String(e));
     }
@@ -91,14 +95,17 @@ export default function HabitList() {
 
   async function toggle(habit: Habit) {
     const done = !doneSet.has(`${habit.id}|${today}`);
+    const nextLogs = done
+      ? [...logs, { habitId: habit.id, date: today }]
+      : logs.filter((l) => !(l.habitId === habit.id && l.date === today));
     // optimistic: flip locally so the checkbox + stats respond instantly
-    setLogs((prev) =>
-      done
-        ? [...prev, { habitId: habit.id, date: today }]
-        : prev.filter((l) => !(l.habitId === habit.id && l.date === today)),
-    );
+    setLogs(nextLogs);
     try {
       await setHabitDone(habit.id, today, done);
+      // done = +10 XP; missed/undone = the 10 comes back off
+      toast(done ? "✨" : "↩️", done ? `+${XP_PER_TICK} XP` : `−${XP_PER_TICK} XP`);
+      const xp = await applyTickXp(done ? XP_PER_TICK : -XP_PER_TICK);
+      await checkAchievements({ habits, logs: nextLogs, today, xp });
     } catch (e) {
       setLoadError(String(e));
       await refresh();

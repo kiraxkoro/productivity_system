@@ -66,6 +66,11 @@ CREATE TABLE IF NOT EXISTS habit_logs (
     date     TEXT NOT NULL,                  -- 'YYYY-MM-DD', presence = done
     PRIMARY KEY (habit_id, date)
 );
+
+CREATE TABLE IF NOT EXISTS achievements (
+    id          TEXT PRIMARY KEY,            -- catalog id, e.g. 'first-step'
+    unlocked_at TEXT NOT NULL                -- ISO date
+);
 ";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -405,4 +410,51 @@ pub fn list_habit_logs(
         })
     })?;
     rows.collect()
+}
+
+// ---- XP + achievements (gamification) ----
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Achievement {
+    pub id: String,
+    pub unlocked_at: String,
+}
+
+const XP_KEY: &str = "xp";
+
+pub fn get_xp(conn: &Connection) -> i64 {
+    get_setting(conn, XP_KEY)
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0)
+}
+
+/// Apply an XP delta (clamped at 0 — you can't owe the game) and return the
+/// new total.
+pub fn adjust_xp(conn: &Connection, delta: i64) -> rusqlite::Result<i64> {
+    let new = (get_xp(conn) + delta).max(0);
+    set_setting(conn, XP_KEY, &new.to_string())?;
+    Ok(new)
+}
+
+pub fn list_achievements(conn: &Connection) -> rusqlite::Result<Vec<Achievement>> {
+    let mut stmt = conn.prepare("SELECT id, unlocked_at FROM achievements")?;
+    let rows = stmt.query_map([], |row| {
+        Ok(Achievement {
+            id: row.get("id")?,
+            unlocked_at: row.get("unlocked_at")?,
+        })
+    })?;
+    rows.collect()
+}
+
+/// Record an achievement; true only the first time, so callers can notify
+/// exactly once.
+pub fn unlock_achievement(conn: &Connection, id: &str) -> rusqlite::Result<bool> {
+    let today = Local::now().format("%Y-%m-%d").to_string();
+    let inserted = conn.execute(
+        "INSERT OR IGNORE INTO achievements (id, unlocked_at) VALUES (?1, ?2)",
+        rusqlite::params![id, today],
+    )?;
+    Ok(inserted > 0)
 }

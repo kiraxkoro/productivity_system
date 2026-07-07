@@ -453,3 +453,121 @@
   white-space: nowrap;
   pointer-events: none;
 }
+
+/* ---- toasts (XP / level / achievements) ---- */
+.toast-stack {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--panel-2);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-radius: 12px;
+  padding: 10px 16px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  animation: toast-in 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes toast-in {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.toast-emoji {
+  font-size: 1.3rem;
+}
+.toast-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.toast-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.toast-sub {
+  font-size: 0.8rem;
+}
+
+/* ---- level card (Progress tab) ---- */
+.level-card {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+.level-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+.level-number {
+  font-size: 2.4rem;
+  font-weight: 700;
+  line-height: 1.05;
+}
+.level-info h3 {
+  margin: 0 0 6px;
+}
+.level-info p {
+  margin: 0;
+}
+
+/* ---- achievements grid ---- */
+.achieve-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+.achieve {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.achieve.unlocked {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+.achieve.locked {
+  opacity: 0.55;
+}
+.achieve-emoji {
+  font-size: 1.6rem;
+  flex-shrink: 0;
+}
+.achieve-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.achieve-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.achieve-desc {
+  font-size: 0.8rem;
+}
+.achieve-date {
+  font-size: 0.74rem;
+  color: var(--ok);
+  margin-top: 2px;
+}
