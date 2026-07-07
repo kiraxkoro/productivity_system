@@ -3,7 +3,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Habit, HabitLog } from "../../shared/types";
-import Ring from "./Ring";
 import {
   createHabit,
   daysInMonth,
@@ -14,6 +13,7 @@ import {
   pad,
   setHabitDone,
   todayISO,
+  toISO,
 } from "./api";
 import { applyTickXp, checkAchievements, XP_PER_TICK } from "./progress";
 import { toast } from "./Toasts";
@@ -35,9 +35,13 @@ export default function HabitList() {
 
   const refresh = useCallback(async () => {
     try {
-      const from = `${year}-${pad(month + 1)}-01`;
+      // all-time logs: the streak crosses months and Total Completed is
+      // lifetime; the calendar/chart just filter down to this month
       const to = `${year}-${pad(month + 1)}-${pad(totalDays)}`;
-      const [h, l] = await Promise.all([listHabits(), listHabitLogs(from, to)]);
+      const [h, l] = await Promise.all([
+        listHabits(),
+        listHabitLogs("2000-01-01", to),
+      ]);
       setHabits(h);
       setLogs(l);
       setLoadError("");
@@ -67,13 +71,23 @@ export default function HabitList() {
     [habits, doneSet, year, month],
   );
 
-  const todayFraction = dayFraction(todayDay);
-  // Whole-month progress: every habit × every day of the month is one slot;
-  // the percentage is slots done so far. Day 5 with everything done ≈ 16%,
-  // not 100% — the month itself is the target.
-  const monthSlots = habits.length * totalDays;
-  const monthDone = logs.length;
-  const monthProgress = monthSlots > 0 ? monthDone / monthSlots : null;
+  // --- the three headline boxes ---
+  const doneToday = logs.filter((l) => l.date === today).length;
+  const totalCompleted = logs.length; // lifetime check-ins
+
+  // Streak: consecutive days with at least one check-in, walking back from
+  // today. An empty today doesn't break it — the day isn't over yet.
+  const streak = useMemo(() => {
+    const activeDays = new Set(logs.map((l) => l.date));
+    let days = 0;
+    const d = new Date();
+    if (!activeDays.has(today)) d.setDate(d.getDate() - 1);
+    while (activeDays.has(toISO(d))) {
+      days++;
+      d.setDate(d.getDate() - 1);
+    }
+    return days;
+  }, [logs, today]);
 
   async function addHabit() {
     const title = newTitle.trim();
@@ -132,49 +146,38 @@ export default function HabitList() {
         </div>
       )}
 
-      <div className="stat-row">
-        <div className="stat-tile">
-          <Ring
-            pct={todayFraction === null ? 0 : todayFraction * 100}
-            size={130}
-            stroke={11}
-            tone={todayFraction === 1 ? "ok" : "accent"}
-          >
-            <span className="ring-value">
-              {todayFraction === null ? "—" : fmtPct(todayFraction * 100)}
-            </span>
-          </Ring>
-          <div className="stat-text">
-            <div className="stat-label">Today</div>
-            <div className="stat-sub muted">
-              {habits.length === 0
-                ? "no habits yet"
-                : `${logs.filter((l) => l.date === today).length} of ${
-                    habits.length
-                  } done`}
-            </div>
+      <div className="stat-boxes">
+        <div className="stat-box purple">
+          <div className="stat-box-label">🎯 Today's Focus</div>
+          <div className="stat-box-value">
+            {doneToday}/{habits.length} Habits
+          </div>
+          <div className="focus-bar">
+            <div
+              className="focus-bar-fill"
+              style={{
+                width: `${habits.length ? (doneToday / habits.length) * 100 : 0}%`,
+              }}
+            />
           </div>
         </div>
-        <div className="stat-tile">
-          <Ring
-            pct={monthProgress === null ? 0 : monthProgress * 100}
-            size={130}
-            stroke={11}
-            tone={monthProgress === 1 ? "ok" : "accent"}
-          >
-            <span className="ring-value">
-              {monthProgress === null ? "—" : fmtPct(monthProgress * 100)}
-            </span>
-          </Ring>
-          <div className="stat-text">
-            <div className="stat-label">{monthLabel}</div>
-            <div className="stat-sub muted">
-              {monthDone} of {monthSlots} check-ins this month
-            </div>
+        <div className="stat-box purple">
+          <div className="stat-box-label">📅 Monthly Streak</div>
+          <div className="stat-box-value">
+            {streak} Day{streak === 1 ? "" : "s"}
           </div>
+          <div className="stat-box-sub muted">
+            days in a row with at least one check-in
+          </div>
+        </div>
+        <div className="stat-box green">
+          <div className="stat-box-label">✅ Total Completed</div>
+          <div className="stat-box-value">{totalCompleted} Habits</div>
+          <div className="stat-box-sub muted">lifetime check-ins</div>
         </div>
       </div>
 
+      <div className="habit-cols">
       <section className="card">
         <h3>
           🔁 Today's habits{" "}
@@ -199,7 +202,10 @@ export default function HabitList() {
           <ul className="habit-list">
             {habits.map((h) => {
               const done = doneSet.has(`${h.id}|${today}`);
-              const monthCount = logs.filter((l) => l.habitId === h.id).length;
+              const monthPrefix = `${year}-${pad(month + 1)}`;
+              const monthCount = logs.filter(
+                (l) => l.habitId === h.id && l.date.startsWith(monthPrefix),
+              ).length;
               return (
                 <li key={h.id} className={`habit-row ${done ? "done" : ""}`}>
                   <label className="habit-check-label">
@@ -232,6 +238,24 @@ export default function HabitList() {
 
       <section className="card">
         <h3>
+          🗓 Monthly completion <span className="muted">{monthLabel}</span>
+        </h3>
+        <MonthCalendar
+          totalDays={totalDays}
+          todayDay={todayDay}
+          firstWeekday={new Date(year, month, 1).getDay()}
+          dayFraction={dayFraction}
+        />
+        <div className="cal-legend muted">
+          <span className="cal-cell full" /> all done
+          <span className="cal-cell partial" /> partial
+          <span className="cal-cell none" /> missed
+        </div>
+      </section>
+      </div>
+
+      <section className="card">
+        <h3>
           📈 {monthLabel}{" "}
           <span className="muted">daily completion, all habits</span>
         </h3>
@@ -246,6 +270,59 @@ export default function HabitList() {
         )}
       </section>
     </>
+  );
+}
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+// Month grid: one cell per day, green = every habit done, purple = some,
+// dim = missed, hollow = future / before any habit existed.
+function MonthCalendar({
+  totalDays,
+  todayDay,
+  firstWeekday,
+  dayFraction,
+}: {
+  totalDays: number;
+  todayDay: number;
+  firstWeekday: number; // weekday of the 1st (0 = Sunday)
+  dayFraction: (day: number) => number | null;
+}) {
+  const cells: (number | null)[] = [
+    ...Array.from({ length: firstWeekday }, () => null),
+    ...Array.from({ length: totalDays }, (_, i) => i + 1),
+  ];
+
+  const statusOf = (day: number): string => {
+    if (day > todayDay) return "future";
+    const f = dayFraction(day);
+    if (f === null) return "future"; // before the first habit existed
+    if (f >= 1) return "full";
+    if (f > 0) return "partial";
+    return "none";
+  };
+
+  return (
+    <div className="cal">
+      {WEEKDAYS.map((w) => (
+        <div key={w} className="cal-head muted">
+          {w}
+        </div>
+      ))}
+      {cells.map((day, i) =>
+        day === null ? (
+          <div key={`pad-${i}`} />
+        ) : (
+          <div
+            key={day}
+            className={`cal-cell ${statusOf(day)} ${day === todayDay ? "today" : ""}`}
+            title={`Day ${day}`}
+          >
+            {day}
+          </div>
+        ),
+      )}
+    </div>
   );
 }
 

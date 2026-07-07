@@ -277,44 +277,131 @@
   padding: 6px 8px;
 }
 
-/* ---- habit stat tiles ---- */
-.stat-row {
+/* ---- habit headline boxes (Today's Focus / Streak / Total) ---- */
+.stat-boxes {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
 }
-@media (max-width: 640px) {
-  .stat-row {
+@media (max-width: 760px) {
+  .stat-boxes {
     grid-template-columns: 1fr;
   }
 }
-.stat-tile {
+.stat-box {
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  border: 1.5px solid var(--border);
+  background: var(--panel);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition: transform 0.15s, box-shadow 0.2s;
+}
+.stat-box:hover {
+  transform: translateY(-2px);
+}
+.stat-box.purple {
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+}
+.stat-box.green {
+  border-color: color-mix(in srgb, var(--ok) 55%, transparent);
+  background: color-mix(in srgb, var(--ok) 7%, var(--panel));
+}
+.stat-box-label {
+  font-size: 0.92rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.stat-box-value {
+  font-size: 1.7rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.stat-box-sub {
+  font-size: 0.78rem;
+  margin-top: 6px;
+}
+.focus-bar {
+  margin-top: 12px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+.focus-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent-grad);
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ---- habits + calendar side by side ---- */
+.habit-cols {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .habit-cols {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- monthly completion calendar ---- */
+.cal {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.cal-head {
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding-bottom: 2px;
+}
+.cal-cell {
+  aspect-ratio: 1;
   display: flex;
   align-items: center;
-  gap: 20px;
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.16), var(--panel) 65%);
-  border: 1px solid rgba(168, 85, 247, 0.3);
-  border-radius: var(--radius);
-  padding: 18px 22px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  transition: transform 0.15s, box-shadow 0.2s, border-color 0.2s;
-}
-.stat-tile:hover {
-  transform: translateY(-2px);
-  border-color: rgba(168, 85, 247, 0.55);
-  box-shadow: 0 8px 26px rgba(139, 92, 246, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-.stat-label {
-  font-size: 0.82rem;
+  justify-content: center;
+  border-radius: 9px;
+  font-size: 0.78rem;
   font-weight: 600;
+  background: var(--panel-2);
   color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin-bottom: 4px;
 }
-.stat-sub {
-  font-size: 0.86rem;
+.cal-cell.full {
+  background: var(--ok);
+  color: #06281a;
+}
+.cal-cell.partial {
+  background: var(--accent);
+  color: #fff;
+}
+.cal-cell.none {
+  background: var(--panel-2);
+}
+.cal-cell.future {
+  background: transparent;
+  border: 1px dashed var(--border);
+}
+.cal-cell.today {
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.cal-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 0.78rem;
+}
+.cal-legend .cal-cell {
+  width: 16px;
+  height: 16px;
+  aspect-ratio: auto;
+  border-radius: 5px;
+  flex-shrink: 0;
 }
 
 /* ---- habit list ---- */
