@@ -6,6 +6,33 @@
   gap: 16px;
 }
 
+/* everything rises in with a slight stagger — the page feels alive on entry */
+.sched > *,
+.sched-main > *,
+.sched-rail > *,
+.tracker > * {
+  animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+.sched-main > *:nth-child(2),
+.sched-rail > *:nth-child(2),
+.tracker > *:nth-child(2) {
+  animation-delay: 0.07s;
+}
+.sched-main > *:nth-child(3),
+.tracker > *:nth-child(3) {
+  animation-delay: 0.14s;
+}
+.sched-main > *:nth-child(4),
+.tracker > *:nth-child(4) {
+  animation-delay: 0.21s;
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
 /* ---- desktop layout: quick-actions rail + content column ---- */
 .sched-grid {
   display: grid;
@@ -120,7 +147,18 @@
     rgba(59, 130, 246, 0.1)
   );
   border-color: rgba(168, 85, 247, 0.55);
-  box-shadow: var(--glow), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  animation: breathe 3.4s ease-in-out infinite;
+}
+@keyframes breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 22px rgba(139, 92, 246, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+  50% {
+    box-shadow: 0 0 46px rgba(139, 92, 246, 0.55),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
 }
 .now-card.idle {
   color: var(--muted);
@@ -158,6 +196,24 @@
   background: var(--accent-grad);
   box-shadow: 0 0 12px rgba(168, 85, 247, 0.8);
   transition: width 1s linear;
+  position: relative;
+  overflow: hidden;
+}
+/* light band sweeping along the progress bar */
+.progress-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  animation: shimmer 2.2s ease-in-out infinite;
+}
+@keyframes shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
 }
 
 /* ---- cards & headings ---- */
@@ -215,11 +271,30 @@
   background: var(--accent-grad);
   color: #fff;
   box-shadow: 0 4px 16px rgba(139, 92, 246, 0.4);
-  transition: transform 0.1s, box-shadow 0.2s;
+  transition: transform 0.12s, box-shadow 0.2s;
+  position: relative;
+  overflow: hidden;
 }
 .chip.big:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 22px rgba(139, 92, 246, 0.55);
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 8px 28px rgba(139, 92, 246, 0.6);
+}
+.chip.big:active {
+  transform: translateY(0) scale(0.98);
+}
+.chip.big::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -80%;
+  width: 60%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transform: skewX(-20deg);
+  transition: left 0.45s ease;
+}
+.chip.big:hover::after {
+  left: 120%;
 }
 .check {
   display: inline-flex;
@@ -345,7 +420,16 @@
 .pill.live {
   background: var(--accent-grad);
   color: #fff;
-  box-shadow: 0 0 12px rgba(139, 92, 246, 0.6);
+  animation: pill-pulse 2s ease-in-out infinite;
+}
+@keyframes pill-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 8px rgba(139, 92, 246, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 18px rgba(139, 92, 246, 0.85);
+  }
 }
 .pill.done {
   background: rgba(34, 197, 94, 0.18);

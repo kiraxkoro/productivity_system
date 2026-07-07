@@ -41,14 +41,34 @@
 
 body {
   margin: 0;
-  /* violet night sky: two soft glows bleeding into near-black */
-  background:
-    radial-gradient(55% 38% at 12% -5%, rgba(139, 92, 246, 0.26), transparent 70%),
-    radial-gradient(45% 32% at 92% 8%, rgba(59, 130, 246, 0.13), transparent 70%),
-    radial-gradient(50% 38% at 80% 105%, rgba(168, 85, 247, 0.16), transparent 70%),
-    var(--bg);
-  background-attachment: fixed;
+  background: var(--bg);
   min-height: 100vh;
+}
+
+/* living aurora: blurred color fields that drift and breathe behind everything */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -25%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(32% 28% at 22% 28%, rgba(139, 92, 246, 0.4), transparent 70%),
+    radial-gradient(26% 22% at 78% 16%, rgba(59, 130, 246, 0.26), transparent 70%),
+    radial-gradient(30% 28% at 62% 82%, rgba(217, 70, 239, 0.22), transparent 70%);
+  filter: blur(70px);
+  animation: aurora 26s ease-in-out infinite alternate;
+}
+@keyframes aurora {
+  0% {
+    transform: translate3d(-4%, -2%, 0) scale(1) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(3%, 4%, 0) scale(1.1) rotate(2deg);
+  }
+  100% {
+    transform: translate3d(-2%, 3%, 0) scale(1.03) rotate(-2deg);
+  }
 }
 
 .app {
@@ -74,10 +94,17 @@ body {
   font-weight: 800;
   font-size: 1.1rem;
   letter-spacing: 0.01em;
-  background: linear-gradient(90deg, #fff, var(--accent-soft));
+  background: linear-gradient(90deg, #fff, var(--accent-soft), #a855f7, #fff);
+  background-size: 300% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
+  animation: brandflow 7s linear infinite;
+}
+@keyframes brandflow {
+  to {
+    background-position: 300% 0;
+  }
 }
 .tabs {
   display: flex;
@@ -169,10 +196,27 @@ button.primary {
   padding: 9px 20px;
   box-shadow: 0 4px 18px rgba(139, 92, 246, 0.4);
   transition: transform 0.1s, box-shadow 0.2s;
+  position: relative;
+  overflow: hidden;
 }
 button.primary:hover {
   transform: translateY(-1px);
   box-shadow: 0 6px 24px rgba(139, 92, 246, 0.55);
+}
+/* light sweep across gradient buttons on hover */
+button.primary::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -80%;
+  width: 60%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transform: skewX(-20deg);
+  transition: left 0.45s ease;
+}
+button.primary:hover::after {
+  left: 120%;
 }
 button.ghost {
   background: transparent;
@@ -185,6 +229,37 @@ button.ghost:hover {
 
 .muted {
   color: var(--muted);
+}
+
+/* ---- thin purple scrollbars ---- */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.35);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 92, 246, 0.6);
+  background-clip: content-box;
+  border: 2px solid transparent;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---- accessibility: respect reduced-motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* ---- narrow screens ---- */
