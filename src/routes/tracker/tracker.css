@@ -33,8 +33,9 @@
   color: var(--text);
 }
 .subtab.on {
-  background: color-mix(in srgb, var(--accent) 26%, var(--panel-2));
-  color: var(--text);
+  background: var(--accent-grad);
+  color: #fff;
+  box-shadow: 0 2px 14px rgba(139, 92, 246, 0.45);
 }
 
 /* ---- progress ring ---- */
@@ -54,10 +55,12 @@
 }
 .ring-fill {
   stroke: var(--accent);
+  filter: drop-shadow(0 0 6px rgba(168, 85, 247, 0.65));
   transition: stroke-dashoffset 0.6s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .ring.ok .ring-fill {
   stroke: var(--ok);
+  filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.55));
 }
 /* center content wears text tokens — the ring alone carries the color */
 .ring-center {
@@ -127,7 +130,9 @@
   background: color-mix(in srgb, var(--accent) 5%, var(--panel-2));
 }
 .goal-row.complete {
-  opacity: 0.75;
+  border-color: rgba(34, 197, 94, 0.45);
+  background: rgba(34, 197, 94, 0.06);
+  box-shadow: 0 0 16px rgba(34, 197, 94, 0.12);
 }
 .goal-head {
   display: flex;
@@ -278,10 +283,11 @@
   display: flex;
   align-items: center;
   gap: 20px;
-  background: var(--panel);
-  border: 1px solid var(--border);
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.16), var(--panel) 65%);
+  border: 1px solid rgba(168, 85, 247, 0.3);
   border-radius: var(--radius);
   padding: 18px 22px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 .stat-label {
   font-size: 0.82rem;
@@ -325,6 +331,7 @@
 .habit-row.done {
   border-color: color-mix(in srgb, var(--ok) 40%, var(--border));
   background: color-mix(in srgb, var(--ok) 5%, var(--panel-2));
+  box-shadow: 0 0 14px rgba(34, 197, 94, 0.12);
 }
 .habit-check-label {
   flex: 1;
@@ -361,6 +368,7 @@
   background: var(--ok);
   border-color: var(--ok);
   color: #06281a;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
 }
 .habit-title {
   font-weight: 600;
