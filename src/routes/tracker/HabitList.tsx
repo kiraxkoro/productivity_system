@@ -75,19 +75,27 @@ export default function HabitList() {
   const doneToday = logs.filter((l) => l.date === today).length;
   const totalCompleted = logs.length; // lifetime check-ins
 
-  // Streak: consecutive days with at least one check-in, walking back from
-  // today. An empty today doesn't break it — the day isn't over yet.
+  // Streak: consecutive days where EVERY habit existing that day was done,
+  // walking back from today. An incomplete today doesn't break it — the day
+  // isn't over yet; it joins the streak once the last habit is ticked.
   const streak = useMemo(() => {
-    const activeDays = new Set(logs.map((l) => l.date));
+    const doneSet = new Set(logs.map((l) => `${l.habitId}|${l.date}`));
+    const fullDay = (date: string) => {
+      const existing = habits.filter((h) => h.createdDate <= date);
+      return (
+        existing.length > 0 &&
+        existing.every((h) => doneSet.has(`${h.id}|${date}`))
+      );
+    };
     let days = 0;
     const d = new Date();
-    if (!activeDays.has(today)) d.setDate(d.getDate() - 1);
-    while (activeDays.has(toISO(d))) {
+    if (!fullDay(today)) d.setDate(d.getDate() - 1);
+    while (fullDay(toISO(d))) {
       days++;
       d.setDate(d.getDate() - 1);
     }
     return days;
-  }, [logs, today]);
+  }, [habits, logs, today]);
 
   async function addHabit() {
     const title = newTitle.trim();
@@ -167,7 +175,7 @@ export default function HabitList() {
             {streak} Day{streak === 1 ? "" : "s"}
           </div>
           <div className="stat-box-sub muted">
-            days in a row with at least one check-in
+            days in a row with every habit done
           </div>
         </div>
         <div className="stat-box green">
