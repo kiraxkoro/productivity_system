@@ -129,7 +129,8 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
       fresh: blank || initial.actions.some(isBrowserClose),
       apps: blank || a.present,
       sites: blank || s.present,
-      strict: blank || initial.actions.some(isWhitelist),
+      // opt-in only: whitelist mode is a chainsaw, never a default
+      strict: initial.actions.some(isWhitelist),
       custom: s.rest.map((x) => ({ ...x })),
     };
   });
