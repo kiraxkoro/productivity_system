@@ -6,6 +6,65 @@
   gap: 16px;
 }
 
+/* ---- desktop layout: quick-actions rail + content column ---- */
+.sched-grid {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.sched-main,
+.sched-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.sched-rail {
+  position: sticky;
+  top: 72px;
+}
+.sched-rail .focus-row {
+  flex-direction: column;
+  align-items: stretch;
+}
+.sched-rail .chip.big {
+  width: 100%;
+}
+.sched-rail .check {
+  margin-left: 0;
+}
+@media (max-width: 960px) {
+  .sched-grid {
+    grid-template-columns: 1fr;
+  }
+  .sched-rail {
+    position: static;
+  }
+  .sched-rail .focus-row {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .sched-rail .chip.big {
+    width: auto;
+  }
+}
+
+/* big live countdown in the hero */
+.now-timer {
+  font-size: 2.7rem;
+  font-weight: 800;
+  line-height: 1.1;
+  margin: 2px 0 4px;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(90deg, #fff, var(--accent-soft));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
 .banner.error {
   background: color-mix(in srgb, var(--danger) 14%, var(--panel));
   border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);

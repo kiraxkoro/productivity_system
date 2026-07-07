@@ -74,7 +74,12 @@ export default function HabitList() {
 
   async function addHabit() {
     const title = newTitle.trim();
-    if (!title) return;
+    if (!title) {
+      // silent returns made "nothing happened" bug reports — say something
+      setLoadError('Type the habit first (e.g. "Morning run"), then hit Add.');
+      setTimeout(() => setLoadError(""), 4000);
+      return;
+    }
     try {
       await createHabit({ id: crypto.randomUUID(), title, createdDate: today });
       setNewTitle("");

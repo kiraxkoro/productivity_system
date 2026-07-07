@@ -30,6 +30,7 @@ import {
   nextBlockToday,
   nextFiveMinutes,
   nowHHMM,
+  pad,
   setBlockEnabled,
   toMinutes,
   todayISO,
@@ -342,6 +343,8 @@ export default function ScheduleList() {
         />
       )}
 
+      <div className="sched-grid">
+      <aside className="sched-rail">
       <section className="card">
         <h3>
           ⚡ Focus now{" "}
@@ -364,6 +367,9 @@ export default function ScheduleList() {
         </div>
       </section>
 
+      </aside>
+
+      <div className="sched-main">
       <section className="card">
         <h3>
           📦 Templates{" "}
@@ -439,6 +445,9 @@ export default function ScheduleList() {
           </ul>
         </section>
       )}
+
+      </div>
+      </div>
 
       {autostart !== null && (
         <section className="card">
@@ -631,15 +640,19 @@ function NowBanner({
     const endSec = toMinutes(active.endTime) * 60;
     const raw = ((nowSec - startSec) / (endSec - startSec)) * 100;
     const pct = Math.min(100, Math.max(0, raw));
-    const minsLeft = Math.max(0, Math.ceil((endSec - nowSec) / 60));
+    const rem = Math.max(0, endSec - nowSec);
+    const timer =
+      rem >= 3600
+        ? `${Math.floor(rem / 3600)}:${pad(Math.floor((rem % 3600) / 60))}:${pad(rem % 60)}`
+        : `${Math.floor(rem / 60)}:${pad(rem % 60)}`;
     return (
       <div className="now-card active">
         <div className="now-main">
           <div className="now-eyebrow">● focus mode</div>
           <h2>{active.label}</h2>
+          <div className="now-timer">{timer}</div>
           <div className="now-sub">
-            {fmtTime(active.startTime)} – {fmtTime(active.endTime)} ·{" "}
-            <b>{minsLeft} min left</b>
+            {fmtTime(active.startTime)} – {fmtTime(active.endTime)}
           </div>
           <div className="progress">
             <div className="progress-fill" style={{ width: `${pct}%` }} />

@@ -109,7 +109,7 @@ body {
 }
 
 .content {
-  width: min(880px, 100%);
+  width: min(1160px, 100%);
   margin: 0 auto;
   padding: 20px 22px 48px;
 }
