@@ -2,6 +2,7 @@
 // cabinet. Ticks earn XP elsewhere; this is where it all shows off.
 
 import { useCallback, useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import type { Achievement } from "../../shared/types";
 import Ring from "./Ring";
 import {
@@ -9,11 +10,26 @@ import {
   getXp,
   levelOf,
   listAchievements,
+  RANKS,
   rankOf,
+  xpForLevel,
   xpIntoLevel,
   xpNeededFor,
 } from "./progress";
 import "./tracker.css";
+
+// one signature color per tier, Iron -> Legend
+const RANK_COLORS = [
+  "#8d99ae", // Iron
+  "#d97706", // Bronze
+  "#d1d5db", // Silver
+  "#fbbf24", // Gold
+  "#67e8f9", // Platinum
+  "#818cf8", // Diamond
+  "#d946ef", // Master
+  "#f43f5e", // Grandmaster
+  "#a855f7", // Legend
+];
 
 export default function ProgressPanel() {
   const [xp, setXp] = useState(0);
@@ -71,6 +87,8 @@ export default function ProgressPanel() {
         </div>
       </div>
 
+      <RankLadder level={level} />
+
       <section className="card">
         <h3>
           🏆 Badges{" "}
@@ -99,5 +117,64 @@ export default function ProgressPanel() {
         </ul>
       </section>
     </>
+  );
+}
+
+// The full rank ladder, Legend on top like a game ranking. Each layer shows
+// its level range and the XP it takes to get in; your tier carries a
+// 10-segment bar — one segment per level climbed inside the rank.
+function RankLadder({ level }: { level: number }) {
+  const currentIdx = Math.min(Math.floor((level - 1) / 10), RANKS.length - 1);
+
+  return (
+    <section className="card">
+      <h3>
+        🪜 Rank ladder{" "}
+        <span className="muted">every 10 levels is a new rank</span>
+      </h3>
+      <ul className="rank-ladder">
+        {RANKS.map((name, i) => {
+          const startLevel = i * 10 + 1;
+          const isTop = i === RANKS.length - 1;
+          const endLevel = isTop ? null : (i + 1) * 10;
+          const state =
+            i < currentIdx ? "passed" : i === currentIdx ? "current" : "upcoming";
+          const enterXp = xpForLevel(startLevel);
+          const climbed = level - startLevel; // levels completed inside this rank
+          return (
+            <li
+              key={name}
+              className={`rank-row ${state}`}
+              style={{ "--rank-color": RANK_COLORS[i] } as CSSProperties}
+            >
+              <span className="rank-medal" aria-hidden="true" />
+              <span className="rank-text">
+                <span className="rank-name">{name}</span>
+                <span className="rank-range muted">
+                  {endLevel ? `Levels ${startLevel}–${endLevel}` : `Level ${startLevel}+`}
+                  {" · "}
+                  {i === 0 ? "the starting tier" : `from ${enterXp.toLocaleString()} XP`}
+                </span>
+              </span>
+              {state === "current" && (
+                <span className="rank-progress">
+                  <span className="rank-you">YOU · LV {level}</span>
+                  <span className="rank-segments">
+                    {Array.from({ length: 10 }, (_, s) => (
+                      <span
+                        key={s}
+                        className={`rank-seg ${s < climbed ? "on" : ""}`}
+                      />
+                    ))}
+                  </span>
+                </span>
+              )}
+              {state === "passed" && <span className="rank-done">✓</span>}
+              {state === "upcoming" && <span className="rank-lock">🔒</span>}
+            </li>
+          );
+        }).reverse()}
+      </ul>
+    </section>
   );
 }
