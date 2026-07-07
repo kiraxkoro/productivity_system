@@ -7,7 +7,10 @@ import type { Achievement, Goal, Habit, HabitLog } from "../../shared/types";
 import { toast } from "./Toasts";
 
 export const XP_PER_TICK = 10;
-export const XP_PER_LEVEL = 100;
+// Leveling curve: level 1 -> 2 costs 100 XP, and every level after costs
+// 50 more than the one before (2 -> 3 is 150, 3 -> 4 is 200, ...).
+export const XP_BASE = 100;
+export const XP_STEP = 50;
 
 // ---- Rust commands ----
 export const getXp = () => invoke<number>("get_xp");
@@ -19,8 +22,40 @@ const notifyUser = (title: string, body: string) =>
   invoke<void>("notify_user", { title, body }).catch(() => {});
 
 // ---- level math ----
-export const levelOf = (xp: number) => Math.floor(xp / XP_PER_LEVEL) + 1;
-export const xpIntoLevel = (xp: number) => xp % XP_PER_LEVEL;
+/** XP needed to climb from `level` to `level + 1`. */
+export const xpNeededFor = (level: number) => XP_BASE + (level - 1) * XP_STEP;
+
+/** Total XP required to have reached `level` (level 1 = 0). */
+export function xpForLevel(level: number): number {
+  const n = level - 1;
+  return n * XP_BASE + (XP_STEP * n * (n - 1)) / 2;
+}
+
+export function levelOf(xp: number): number {
+  let level = 1;
+  while (xp >= xpForLevel(level + 1)) level++;
+  return level;
+}
+
+/** XP earned inside the current level (0 .. xpNeededFor(level)-1). */
+export const xpIntoLevel = (xp: number) => xp - xpForLevel(levelOf(xp));
+
+// ---- ranks: a new name every 10 levels ----
+export const RANKS = [
+  "Iron",
+  "Bronze",
+  "Silver",
+  "Gold",
+  "Platinum",
+  "Diamond",
+  "Master",
+  "Grandmaster",
+  "Legend",
+];
+
+/** Levels 1-10 = Iron, 11-20 = Bronze, ... (caps at Legend). */
+export const rankOf = (level: number) =>
+  RANKS[Math.min(Math.floor((level - 1) / 10), RANKS.length - 1)];
 
 /**
  * Apply a tick's XP (+10 / -10) and celebrate a completed level exactly once.
@@ -34,8 +69,15 @@ export async function applyTickXp(delta: number): Promise<number> {
     const before = levelOf(newXp - delta);
     const after = levelOf(newXp);
     if (after > before) {
-      toast("🎉", `Level ${after}!`, `You completed level ${before} — keep going.`);
-      void notifyUser(`⚡ Level ${after}!`, `Level ${before} complete. Onward.`);
+      const rank = rankOf(after);
+      if (rank !== rankOf(before)) {
+        // crossing a 10-level boundary is the bigger moment — lead with it
+        toast("🏅", `Rank up: ${rank}!`, `Level ${after} — welcome to ${rank}.`);
+        void notifyUser(`🏅 Rank up: ${rank}!`, `Level ${after} reached. New tier unlocked.`);
+      } else {
+        toast("🎉", `Level ${after}!`, `You completed level ${before} — keep going.`);
+        void notifyUser(`⚡ Level ${after}!`, `Level ${before} complete. Onward.`);
+      }
     }
   }
   return newXp;

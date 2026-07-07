@@ -5,7 +5,13 @@ import HabitList from "./routes/tracker/HabitList";
 import ProgressPanel from "./routes/tracker/ProgressPanel";
 import Dashboard from "./routes/dashboard/Dashboard";
 import ToastHost from "./routes/tracker/Toasts";
-import { getXp, levelOf, XP_PER_LEVEL, xpIntoLevel } from "./routes/tracker/progress";
+import {
+  getXp,
+  levelOf,
+  rankOf,
+  xpIntoLevel,
+  xpNeededFor,
+} from "./routes/tracker/progress";
 import "./App.css";
 
 type Page = "dashboard" | "scheduler" | "tasks" | "habits" | "progress";
@@ -97,7 +103,7 @@ function ProfileBlock() {
   }, []);
 
   const level = levelOf(xp);
-  const pct = (xpIntoLevel(xp) / XP_PER_LEVEL) * 100;
+  const pct = (xpIntoLevel(xp) / xpNeededFor(level)) * 100;
 
   return (
     <div className="profile">
@@ -105,7 +111,7 @@ function ProfileBlock() {
       <div className="profile-info">
         <div className="profile-name">You</div>
         <div className="profile-level muted">
-          Level {level} · {xp} XP
+          {rankOf(level)} · Level {level} · {xp} XP
         </div>
         <div className="profile-bar">
           <div className="profile-bar-fill" style={{ width: `${pct}%` }} />
