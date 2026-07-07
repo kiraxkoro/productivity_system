@@ -556,9 +556,25 @@ function ConfessionModal({
         <blockquote className="weakness-phrase">{WEAKNESS_PHRASE}</blockquote>
         <input
           autoFocus
+          autoComplete="off"
+          spellCheck={false}
           value={text}
-          placeholder="type it…"
-          onChange={(e) => setText(e.currentTarget.value)}
+          placeholder="type it — every word, with your own fingers"
+          onChange={(e) => {
+            setText(e.currentTarget.value);
+            setPwError("");
+          }}
+          onPaste={(e) => {
+            // pasting the confession defeats the entire point
+            e.preventDefault();
+            setText("");
+            setPwError("Nice try. Pasting doesn't count — type it.");
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setText("");
+            setPwError("Dragging text in doesn't count either — type it.");
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter") void attempt();
           }}
