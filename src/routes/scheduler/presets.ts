@@ -95,10 +95,9 @@ export const TEMPLATES: Template[] = [
     emoji: "🧠",
     label: "LeetCode Grind",
     durationMin: 90,
-    hint: "fresh browser with only LeetCode — everything else closed",
+    hint: "fresh browser with only LeetCode, distractions & sites blocked",
     actions: [
       freshBrowser(),
-      whitelistMode(),
       {
         trigger: "onStart",
         type: "openTab",
