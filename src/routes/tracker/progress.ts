@@ -4,6 +4,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import type { Achievement, Goal, Habit, HabitLog } from "../../shared/types";
+import { daysInMonth, pad, toISO } from "./api";
 import { toast } from "./Toasts";
 
 export const XP_PER_TICK = 10;
@@ -99,100 +100,109 @@ interface Ctx {
   xp?: number;
 }
 
-const totalChecked = (goals: Goal[]) =>
-  goals.reduce((n, g) => n + g.checkedItems.length, 0);
-
-/** True when some habit was done every one of the last 7 days (within the
- *  fetched month window). */
-function sevenDayStreak(habits: Habit[], logs: HabitLog[], today: string): boolean {
-  const done = new Set(logs.map((l) => `${l.habitId}|${l.date}`));
-  return habits.some((h) => {
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(today + "T00:00:00");
-      d.setDate(d.getDate() - i);
-      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      if (!done.has(`${h.id}|${iso}`)) return false;
-    }
-    return true;
-  });
+/** Every habit existing on `date` was checked that day. */
+function fullDay(habits: Habit[], doneSet: Set<string>, date: string): boolean {
+  const existing = habits.filter((h) => h.createdDate <= date);
+  return (
+    existing.length > 0 && existing.every((h) => doneSet.has(`${h.id}|${date}`))
+  );
 }
 
+/**
+ * LeetCode-style streak: consecutive days with EVERY habit done, walking
+ * back from today (an incomplete today doesn't break it).
+ */
+export function currentStreak(
+  habits: Habit[],
+  logs: HabitLog[],
+  today: string,
+): number {
+  const doneSet = new Set(logs.map((l) => `${l.habitId}|${l.date}`));
+  let days = 0;
+  const d = new Date(today + "T00:00:00");
+  if (!fullDay(habits, doneSet, today)) d.setDate(d.getDate() - 1);
+  while (fullDay(habits, doneSet, toISO(d))) {
+    days++;
+    d.setDate(d.getDate() - 1);
+  }
+  return days;
+}
+
+/** True when some whole calendar month had every habit done every day. */
+function hasFullMonth(habits: Habit[], logs: HabitLog[]): boolean {
+  const doneSet = new Set(logs.map((l) => `${l.habitId}|${l.date}`));
+  const months = new Set(logs.map((l) => l.date.slice(0, 7))); // "YYYY-MM"
+  for (const m of months) {
+    const [y, mo] = m.split("-").map(Number);
+    const dim = daysInMonth(y, mo - 1);
+    let full = true;
+    for (let day = 1; day <= dim; day++) {
+      if (!fullDay(habits, doneSet, `${m}-${pad(day)}`)) {
+        full = false;
+        break;
+      }
+    }
+    if (full) return true;
+  }
+  return false;
+}
+
+const streakOf = (c: Ctx) =>
+  c.habits && c.logs && c.today ? currentStreak(c.habits, c.logs, c.today) : 0;
+
+const RANK_EMOJI = ["🛡️", "🥉", "🥈", "🥇", "💠", "💎", "🎖️", "👑", "🌟"];
+
 export const ACHIEVEMENTS: (AchievementDef & { check: (c: Ctx) => boolean })[] = [
+  // --- streak badges (all habits done, consecutive days) ---
   {
-    id: "first-step",
-    emoji: "👣",
-    title: "First step",
-    desc: "Tick off your very first task item",
-    check: (c) => !!c.goals && totalChecked(c.goals) >= 1,
+    id: "streak-7",
+    emoji: "🔥",
+    title: "7 Day Streak",
+    desc: "Every habit done, 7 days in a row",
+    check: (c) => streakOf(c) >= 7,
   },
   {
-    id: "halfway-there",
-    emoji: "⛰️",
-    title: "Halfway there",
-    desc: "Reach 50% on any task",
-    check: (c) =>
-      !!c.goals &&
-      c.goals.some((g) => g.targetCount > 0 && g.currentCount * 2 >= g.targetCount && g.currentCount > 0),
+    id: "streak-30",
+    emoji: "⚡",
+    title: "30 Day Streak",
+    desc: "Every habit done, 30 days in a row",
+    check: (c) => streakOf(c) >= 30,
   },
+  {
+    id: "streak-100",
+    emoji: "💯",
+    title: "100 Days Badge",
+    desc: "Every habit done, 100 days in a row",
+    check: (c) => streakOf(c) >= 100,
+  },
+  // --- monthly badge ---
+  {
+    id: "monthly",
+    emoji: "📅",
+    title: "Monthly Master",
+    desc: "A full calendar month, every habit every day",
+    check: (c) => !!c.habits && !!c.logs && hasFullMonth(c.habits, c.logs),
+  },
+  // --- tasks ---
   {
     id: "task-slayer",
     emoji: "🏁",
-    title: "Task slayer",
+    title: "Task Slayer",
     desc: "Complete an entire task",
     check: (c) =>
       !!c.goals &&
       c.goals.some((g) => g.targetCount > 0 && g.currentCount >= g.targetCount),
   },
-  {
-    id: "centurion",
-    emoji: "💯",
-    title: "Centurion",
-    desc: "100 items ticked across all tasks",
-    check: (c) => !!c.goals && totalChecked(c.goals) >= 100,
-  },
-  {
-    id: "habit-farmer",
-    emoji: "🌱",
-    title: "Habit farmer",
-    desc: "Create your first habit",
-    check: (c) => !!c.habits && c.habits.length >= 1,
-  },
-  {
-    id: "perfect-day",
-    emoji: "🌞",
-    title: "Perfect day",
-    desc: "Every habit done in one day",
-    check: (c) =>
-      !!c.habits &&
-      !!c.logs &&
-      !!c.today &&
-      c.habits.length > 0 &&
-      c.habits.every((h) =>
-        c.logs!.some((l) => l.habitId === h.id && l.date === c.today),
-      ),
-  },
-  {
-    id: "week-streak",
-    emoji: "🔥",
-    title: "On fire",
-    desc: "One habit, 7 days in a row",
-    check: (c) =>
-      !!c.habits && !!c.logs && !!c.today && sevenDayStreak(c.habits, c.logs, c.today),
-  },
-  {
-    id: "level-5",
-    emoji: "🥉",
-    title: "Level 5",
-    desc: "Reach level 5",
-    check: (c) => c.xp !== undefined && levelOf(c.xp) >= 5,
-  },
-  {
-    id: "level-10",
-    emoji: "🥇",
-    title: "Level 10",
-    desc: "Reach level 10",
-    check: (c) => c.xp !== undefined && levelOf(c.xp) >= 10,
-  },
+  // --- one badge per rank ---
+  ...RANKS.map((name, i) => ({
+    id: `rank-${name.toLowerCase()}`,
+    emoji: RANK_EMOJI[i],
+    title: `${name} Rank`,
+    desc: i === 0 ? "Earn your first XP" : `Reach level ${i * 10 + 1}`,
+    check: (c: Ctx) =>
+      c.xp !== undefined &&
+      (i === 0 ? c.xp > 0 : levelOf(c.xp) >= i * 10 + 1),
+  })),
 ];
 
 /**

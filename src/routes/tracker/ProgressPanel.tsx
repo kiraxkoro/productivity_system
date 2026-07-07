@@ -7,6 +7,7 @@ import type { Achievement } from "../../shared/types";
 import Ring from "./Ring";
 import {
   ACHIEVEMENTS,
+  checkAchievements,
   getXp,
   levelOf,
   listAchievements,
@@ -38,9 +39,11 @@ export default function ProgressPanel() {
 
   const refresh = useCallback(async () => {
     try {
-      const [x, a] = await Promise.all([getXp(), listAchievements()]);
+      const x = await getXp();
+      // xp-based badges (the rank ones) unlock passively — no tick required
+      await checkAchievements({ xp: x });
       setXp(x);
-      setUnlocked(a);
+      setUnlocked(await listAchievements());
       setLoadError("");
     } catch (e) {
       setLoadError(String(e));
@@ -125,13 +128,28 @@ export default function ProgressPanel() {
 // 10-segment bar — one segment per level climbed inside the rank.
 function RankLadder({ level }: { level: number }) {
   const currentIdx = Math.min(Math.floor((level - 1) / 10), RANKS.length - 1);
+  const [open, setOpen] = useState(
+    () => localStorage.getItem("rankLadder.open") !== "0",
+  );
+
+  function toggle() {
+    const next = !open;
+    setOpen(next);
+    localStorage.setItem("rankLadder.open", next ? "1" : "0");
+  }
 
   return (
     <section className="card">
-      <h3>
-        🪜 Rank ladder{" "}
-        <span className="muted">every 10 levels is a new rank</span>
-      </h3>
+      <div className="section-head">
+        <h3>
+          🪜 Rank ladder{" "}
+          <span className="muted">every 10 levels is a new rank</span>
+        </h3>
+        <button className="chip" onClick={toggle}>
+          {open ? "▾ Hide" : "▸ Show"}
+        </button>
+      </div>
+      {open && (
       <ul className="rank-ladder">
         {RANKS.map((name, i) => {
           const startLevel = i * 10 + 1;
@@ -175,6 +193,7 @@ function RankLadder({ level }: { level: number }) {
           );
         }).reverse()}
       </ul>
+      )}
     </section>
   );
 }
