@@ -46,22 +46,33 @@ fn build_body(app: &tauri::AppHandle) -> String {
 
     match active {
         Some(block) => {
+            // closeApp "*" (whitelist mode) flips the web to whitelist too:
+            // the extension blocks EVERY site except the ones this block opens.
+            let whitelist = block
+                .actions
+                .iter()
+                .any(|a| a.r#type == "closeApp" && a.target.trim() == "*");
+            let source_type = if whitelist { "openTab" } else { "closeTab" };
             let domains: Vec<String> = block
                 .actions
                 .iter()
-                .filter(|a| a.r#type == "closeTab")
+                .filter(|a| a.r#type == source_type)
                 .map(|a| normalize_domain(&a.target))
                 .filter(|d| !d.is_empty())
                 .collect();
             serde_json::json!({
                 "active": true,
+                "mode": if whitelist { "whitelist" } else { "blacklist" },
                 "label": block.label,
                 "endTime": block.end_time,
                 "domains": domains,
             })
             .to_string()
         }
-        None => serde_json::json!({ "active": false, "domains": [] }).to_string(),
+        None => {
+            serde_json::json!({ "active": false, "mode": "blacklist", "domains": [] })
+                .to_string()
+        }
     }
 }
 
