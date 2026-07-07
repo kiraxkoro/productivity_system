@@ -87,7 +87,8 @@ App-level (Person A, in commands/system.rs):
 
 Action conventions (Person A):
   closeApp target "*" = whitelist mode — the scheduler closes every visible
-  app the block didn't open (chosen browser + core Windows processes exempt)
+  app the block didn't open (chosen browser + core Windows processes exempt),
+  and the extension blocks every website except the block's openTab domains
 
 Events emitted from Rust (listen via @tauri-apps/api/event):
   "active-block-changed" -> ScheduleBlock | null   // fired when a block starts/ends

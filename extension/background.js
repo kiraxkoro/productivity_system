@@ -5,7 +5,7 @@
 
 const API = "http://127.0.0.1:48210/blocklist";
 
-let state = { active: false, domains: [], label: "", endTime: "" };
+let state = { active: false, mode: "blacklist", domains: [], label: "", endTime: "" };
 let fetchedAt = 0;
 
 // Restore last-known state instantly when the service worker wakes, so
@@ -20,10 +20,12 @@ async function refresh() {
     state = await res.json();
     fetchedAt = Date.now();
   } catch {
-    state = { active: false, domains: [], label: "", endTime: "" };
+    state = { active: false, mode: "blacklist", domains: [], label: "", endTime: "" };
   }
   await chrome.storage.session.set({ state });
-  if (state.active && state.domains.length) await sweepAllTabs();
+  if (state.active && (state.domains.length || state.mode === "whitelist")) {
+    await sweepAllTabs();
+  }
 }
 
 // Tab activity re-checks the blocklist immediately when the cached copy is
@@ -32,20 +34,34 @@ function maybeRefresh() {
   if (Date.now() - fetchedAt > 10_000) refresh();
 }
 
-function isBlocked(url) {
-  if (!state.active || !state.domains.length) return false;
-  let host;
-  try {
-    host = new URL(url).hostname.toLowerCase();
-  } catch {
-    return false;
-  }
+function matchesAny(host, domains) {
   // "youtube.com" matches youtube.com + any subdomain; a bare token like
   // "youtube" (user skipped the .com) matches any host containing that label
-  return state.domains.some(
+  return domains.some(
     (d) =>
       host === d || host.endsWith("." + d) || host.split(".").includes(d),
   );
+}
+
+function isBlocked(url) {
+  if (!state.active) return false;
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  // only police the web — new-tab pages, chrome:// and extension pages pass
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+  const host = parsed.hostname.toLowerCase();
+  if (host === "localhost" || host === "127.0.0.1") return false;
+
+  if (state.mode === "whitelist") {
+    // monk mode: everything is blocked except the block's own sites
+    return !matchesAny(host, state.domains);
+  }
+  if (!state.domains.length) return false;
+  return matchesAny(host, state.domains);
 }
 
 function blockedPageUrl() {

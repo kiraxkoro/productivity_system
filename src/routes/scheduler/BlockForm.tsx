@@ -424,9 +424,9 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
             <span className="lockdown-text">
               <b>🔐 Whitelist mode</b>
               <small>
-                EVERY app not opened by this block is closed & kept closed —
-                only your browser, this block's apps, and core Windows survive.
-                Save your work before it starts.
+                total monk mode — EVERY app not opened by this block is closed
+                & kept closed, and EVERY website except this block's own sites
+                is walled. Save your work before it starts.
               </small>
             </span>
             <span className="switch">
