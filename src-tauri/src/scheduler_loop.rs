@@ -22,6 +22,25 @@ use tauri::{AppHandle, Emitter, Manager};
 const POLL_SECS: u64 = 15;
 const WARN_MINUTES: i32 = 5;
 
+/// closeApp target meaning "every visible app not opened by this block".
+const WHITELIST_SENTINEL: &str = "*";
+
+/// Never killed by whitelist mode — the desktop has to stay usable.
+const SYSTEM_ALLOWLIST: [&str; 12] = [
+    "explorer.exe",
+    "taskmgr.exe",
+    "searchhost.exe",
+    "startmenuexperiencehost.exe",
+    "shellexperiencehost.exe",
+    "applicationframehost.exe",
+    "systemsettings.exe",
+    "textinputhost.exe",
+    "msedgewebview2.exe", // hosts the Focus OS UI itself
+    "focus-os.exe",
+    "dwm.exe",
+    "lockapp.exe",
+];
+
 pub fn start(app: AppHandle) {
     std::thread::spawn(move || {
         // Keeps the full block (not just the id) so onEnd actions still fire
@@ -101,6 +120,9 @@ fn tick(app: &AppHandle, last_active: &mut Option<ScheduleBlock>, warned_for: &m
             if wants_browser_lockdown(block) {
                 close_other_browsers(&allowed);
             }
+            if wants_whitelist(block) {
+                enforce_whitelist(&block_allowlist(block, &allowed));
+            }
         }
         return;
     }
@@ -115,6 +137,9 @@ fn tick(app: &AppHandle, last_active: &mut Option<ScheduleBlock>, warned_for: &m
     }
     if let Some(block) = current.as_ref() {
         run_actions(block, "onStart", &allowed);
+        if wants_whitelist(block) {
+            enforce_whitelist(&block_allowlist(block, &allowed));
+        }
         notify(
             app,
             &format!("🔒 {}", block.label),
@@ -143,6 +168,80 @@ fn wants_browser_lockdown(block: &ScheduleBlock) -> bool {
         .actions
         .iter()
         .any(|a| a.trigger == "onStart" && a.r#type == "closeApp" && is_browser(&a.target))
+}
+
+/// closeApp "*" = whitelist mode: only apps this block opens may run.
+fn wants_whitelist(block: &ScheduleBlock) -> bool {
+    block.actions.iter().any(|a| {
+        a.trigger == "onStart" && a.r#type == "closeApp" && a.target.trim() == WHITELIST_SENTINEL
+    })
+}
+
+/// Everything this block permits: its own openApp targets (as exe basenames),
+/// the chosen browser, and the system allowlist.
+fn block_allowlist(block: &ScheduleBlock, allowed_browser: &str) -> Vec<String> {
+    let mut allow: Vec<String> = SYSTEM_ALLOWLIST.iter().map(|s| s.to_string()).collect();
+    allow.push(allowed_browser.to_ascii_lowercase());
+    for action in block
+        .actions
+        .iter()
+        .filter(|a| a.trigger == "onStart" && a.r#type == "openApp")
+    {
+        let base = std::path::Path::new(action.target.trim())
+            .file_name()
+            .map(|f| f.to_string_lossy().to_ascii_lowercase())
+            .unwrap_or_default();
+        if base.is_empty() {
+            continue;
+        }
+        let exe = if base.ends_with(".exe") { base } else { format!("{base}.exe") };
+        if !allow.contains(&exe) {
+            allow.push(exe);
+        }
+    }
+    allow
+}
+
+/// Kills every process that owns a visible window and isn't allowlisted.
+/// Visible-window filtering (tasklist /v window titles) is what keeps this
+/// from touching services, drivers, and other system machinery.
+fn enforce_whitelist(allow: &[String]) {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let Ok(out) = std::process::Command::new("tasklist")
+            .args(["/v", "/fo", "csv", "/nh"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+        else {
+            return;
+        };
+        for line in String::from_utf8_lossy(&out.stdout).lines() {
+            let line = line.trim().trim_start_matches('"').trim_end_matches('"');
+            let fields: Vec<&str> = line.split("\",\"").collect();
+            if fields.len() < 3 {
+                continue;
+            }
+            let image = fields[0].to_ascii_lowercase();
+            let pid = fields[1];
+            let title = fields[fields.len() - 1];
+            if title == "N/A" || title.is_empty() {
+                continue; // no visible window — background/system process
+            }
+            if allow.iter().any(|a| *a == image) {
+                continue;
+            }
+            let _ = std::process::Command::new("taskkill")
+                .args(["/PID", pid, "/F"])
+                .creation_flags(CREATE_NO_WINDOW)
+                .output();
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = allow;
+    }
 }
 
 fn close_other_browsers(allowed: &str) {

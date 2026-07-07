@@ -44,6 +44,14 @@ export const freshBrowser = (browserExe = "chrome.exe"): BlockAction => ({
   target: browserExe,
 });
 
+/** closeApp "*" = whitelist mode: every visible app NOT opened by this block
+ *  is closed & kept closed (chosen browser + core Windows stuff survive). */
+export const whitelistMode = (): BlockAction => ({
+  trigger: "onStart",
+  type: "closeApp",
+  target: "*",
+});
+
 /** Sites the "Block sites" pack locks out (needs the browser extension —
  *  see extension/README.md). Domains cover subdomains automatically. */
 export const DISTRACTION_SITES = [
@@ -87,9 +95,10 @@ export const TEMPLATES: Template[] = [
     emoji: "🧠",
     label: "LeetCode Grind",
     durationMin: 90,
-    hint: "fresh browser with only LeetCode, distractions & sites blocked",
+    hint: "fresh browser with only LeetCode — everything else closed",
     actions: [
       freshBrowser(),
+      whitelistMode(),
       {
         trigger: "onStart",
         type: "openTab",

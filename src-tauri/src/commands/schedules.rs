@@ -119,6 +119,11 @@ pub fn close_process(name: &str) -> Result<(), String> {
     if name.is_empty() {
         return Err("empty process name".into());
     }
+    if name == "*" {
+        // whitelist-mode sentinel — only scheduler_loop acts on it, and never
+        // via taskkill /IM * (which would be a massacre)
+        return Ok(());
+    }
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
