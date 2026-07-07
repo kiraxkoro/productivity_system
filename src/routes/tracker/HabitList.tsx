@@ -17,6 +17,7 @@ import {
 } from "./api";
 import { applyTickXp, checkAchievements, XP_PER_TICK } from "./progress";
 import { toast } from "./Toasts";
+import "./tracker.css";
 
 export default function HabitList() {
   const [habits, setHabits] = useState<Habit[]>([]);

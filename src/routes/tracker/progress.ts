@@ -28,6 +28,8 @@ export const xpIntoLevel = (xp: number) => xp % XP_PER_LEVEL;
  */
 export async function applyTickXp(delta: number): Promise<number> {
   const newXp = await adjustXp(delta);
+  // anyone displaying XP (sidebar profile, Progress tab) updates instantly
+  window.dispatchEvent(new CustomEvent("xp-changed", { detail: newXp }));
   if (delta > 0) {
     const before = levelOf(newXp - delta);
     const after = levelOf(newXp);

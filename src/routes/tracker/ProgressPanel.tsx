@@ -12,6 +12,7 @@ import {
   XP_PER_LEVEL,
   xpIntoLevel,
 } from "./progress";
+import "./tracker.css";
 
 export default function ProgressPanel() {
   const [xp, setXp] = useState(0);

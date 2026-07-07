@@ -19,11 +19,16 @@ import {
 } from "./api";
 import { applyTickXp, checkAchievements, XP_PER_TICK } from "./progress";
 import { toast } from "./Toasts";
+import "./tracker.css";
 
-export default function GoalList() {
+export default function GoalList({
+  initialExpanded = null,
+}: {
+  initialExpanded?: string | null;
+}) {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [showForm, setShowForm] = useState(false);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(initialExpanded);
   const [loadError, setLoadError] = useState("");
 
   const refresh = useCallback(async () => {
