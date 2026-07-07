@@ -7,6 +7,8 @@ A desktop app that fixes "ambition without execution" — one Tauri app with two
 
 Tech: Tauri 2 (Rust backend) + React/TypeScript (Vite) + SQLite via `rusqlite` (bundled, in the Rust layer — see `src-tauri/src/db.rs`). All data is local — no server.
 
+**Accounts (required):** the app opens to an email+password sign-in screen (Supabase); one account works on all your devices. The project URL + anon key are baked into `src/auth/supabase.ts` (the anon key is public by design — access control is Supabase row-level security). For dev you can override them via `.env.local` (see `.env.example`). Sessions persist per device, so you sign in once.
+
 ## Ownership
 
 | Person | Owns |
