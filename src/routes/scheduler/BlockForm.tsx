@@ -20,6 +20,7 @@ import {
   freshBrowser,
   OPEN_SUGGESTIONS,
   siteBlockers,
+  whitelistMode,
 } from "./presets";
 
 interface Props {
@@ -116,20 +117,26 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
     const isBrowserClose = (a: BlockAction) =>
       a.type === "closeApp" &&
       browserProcs.includes(a.target.trim().toLowerCase());
+    const isWhitelist = (a: BlockAction) =>
+      a.type === "closeApp" && a.target.trim() === "*";
     const blank = isNew && initial.actions.length === 0;
-    const withoutFresh = initial.actions.filter((a) => !isBrowserClose(a));
-    const a = extractPack(withoutFresh, distractionBlockers());
+    const withoutMarkers = initial.actions.filter(
+      (a) => !isBrowserClose(a) && !isWhitelist(a),
+    );
+    const a = extractPack(withoutMarkers, distractionBlockers());
     const s = extractPack(a.rest, siteBlockers());
     return {
       fresh: blank || initial.actions.some(isBrowserClose),
       apps: blank || a.present,
       sites: blank || s.present,
+      strict: blank || initial.actions.some(isWhitelist),
       custom: s.rest.map((x) => ({ ...x })),
     };
   });
   const [fresh, setFresh] = useState(initialSplit.fresh);
   const [apps, setApps] = useState(initialSplit.apps);
   const [sites, setSites] = useState(initialSplit.sites);
+  const [strict, setStrict] = useState(initialSplit.strict);
   const [actions, setActions] = useState<BlockAction[]>(initialSplit.custom);
 
   useEffect(() => {
@@ -246,6 +253,7 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
         : [...days].sort((a, b) => a - b),
       actions: [
         ...(fresh ? [freshBrowser(allowedBrowser)] : []),
+        ...(strict ? [whitelistMode()] : []),
         ...(apps ? distractionBlockers() : []),
         ...(sites ? siteBlockers() : []),
         ...custom,
@@ -407,6 +415,24 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
                 type="checkbox"
                 checked={sites}
                 onChange={(e) => setSites(e.currentTarget.checked)}
+              />
+              <span className="slider" />
+            </span>
+          </label>
+          <label className="lockdown-row">
+            <span className="lockdown-text">
+              <b>🔐 Whitelist mode</b>
+              <small>
+                EVERY app not opened by this block is closed & kept closed —
+                only your browser, this block's apps, and core Windows survive.
+                Save your work before it starts.
+              </small>
+            </span>
+            <span className="switch">
+              <input
+                type="checkbox"
+                checked={strict}
+                onChange={(e) => setStrict(e.currentTarget.checked)}
               />
               <span className="slider" />
             </span>
