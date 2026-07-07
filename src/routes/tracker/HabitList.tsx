@@ -162,7 +162,7 @@ export default function HabitList() {
           </div>
         </div>
         <div className="stat-box purple">
-          <div className="stat-box-label">📅 Monthly Streak</div>
+          <div className="stat-box-label">🔥 Current Streak</div>
           <div className="stat-box-value">
             {streak} Day{streak === 1 ? "" : "s"}
           </div>
