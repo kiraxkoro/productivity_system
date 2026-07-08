@@ -3,7 +3,6 @@
 use crate::db;
 use crate::AppState;
 use tauri::State;
-use tauri_plugin_autostart::ManagerExt;
 
 pub const ALLOWED_BROWSER_KEY: &str = "allowed_browser";
 pub const PAUSE_UNTIL_KEY: &str = "pause_until_epoch";
@@ -125,16 +124,34 @@ fn reg_default(key: &str) -> Option<String> {
 
 #[tauri::command]
 pub fn get_autostart(app: tauri::AppHandle) -> Result<bool, String> {
-    app.autolaunch().is_enabled().map_err(|e| e.to_string())
+    #[cfg(desktop)]
+    {
+        use tauri_plugin_autostart::ManagerExt;
+        app.autolaunch().is_enabled().map_err(|e| e.to_string())
+    }
+    #[cfg(mobile)]
+    {
+        let _ = app;
+        Ok(false)
+    }
 }
 
 #[tauri::command]
 pub fn set_autostart(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
-    let autolaunch = app.autolaunch();
-    if enabled {
-        autolaunch.enable().map_err(|e| e.to_string())
-    } else {
-        autolaunch.disable().map_err(|e| e.to_string())
+    #[cfg(desktop)]
+    {
+        use tauri_plugin_autostart::ManagerExt;
+        let autolaunch = app.autolaunch();
+        if enabled {
+            autolaunch.enable().map_err(|e| e.to_string())
+        } else {
+            autolaunch.disable().map_err(|e| e.to_string())
+        }
+    }
+    #[cfg(mobile)]
+    {
+        let _ = (app, enabled);
+        Err("Autostart is not available on mobile".to_string())
     }
 }
 
