@@ -151,13 +151,62 @@ body::before {
   font-size: 1.05rem;
 }
 
-/* profile + level pinned at the bottom */
+/* profile + level pinned at the bottom; click opens the account menu */
+.profile-wrap {
+  position: relative;
+  border-top: 1px solid var(--border);
+}
 .profile {
   display: flex;
   align-items: center;
   gap: 11px;
+  width: 100%;
   padding: 14px 10px 2px;
-  border-top: 1px solid var(--border);
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: none;
+  transition: background 0.15s;
+}
+.profile:hover,
+.profile.open {
+  background: var(--panel);
+}
+.profile-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  background: #171226;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  z-index: 30;
+}
+.menu-item {
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 12px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--text);
+  cursor: pointer;
+  box-shadow: none;
+}
+.menu-item:hover {
+  background: var(--panel-2);
+}
+.menu-item.danger:hover {
+  background: color-mix(in srgb, var(--danger) 18%, transparent);
+  color: var(--danger);
 }
 .avatar {
   width: 40px;
@@ -315,6 +364,35 @@ button.ghost:hover {
 
 .muted {
   color: var(--muted);
+}
+
+/* ---- settings modal extras (base .modal styles live in scheduler.css) ---- */
+.settings-modal .check {
+  margin: 10px 0 2px;
+}
+.settings-modal p.small {
+  margin: 4px 0 12px;
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.settings-label {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.settings-value {
+  color: var(--muted);
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ---- thin purple scrollbars ---- */

@@ -1,0 +1,63 @@
+/* Auth screens + account chip. Shares .field/.primary/.ghost/.form-error
+   tokens with App.css/scheduler.css (loaded alongside via App.tsx). */
+
+.auth-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.auth-card {
+  width: min(400px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 32px 30px;
+}
+.auth-brand {
+  font-weight: 800;
+  font-size: 1.05rem;
+  margin-bottom: 18px;
+}
+.auth-card h2 {
+  margin: 0 0 4px;
+}
+.auth-sub {
+  margin: 0 0 18px;
+  font-size: 0.92rem;
+}
+.auth-card .field {
+  margin-bottom: 12px;
+}
+.auth-card .field input {
+  width: 100%;
+}
+.auth-submit {
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px 18px;
+}
+.auth-switch {
+  width: 100%;
+  margin-top: 10px;
+  border-color: transparent;
+}
+.auth-notice {
+  color: var(--ok);
+  font-size: 0.88rem;
+  margin: 8px 0 0;
+}
+
+/* ---- account chip in the top bar ---- */
+.account-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.account-chip .signout {
+  padding: 5px 12px;
+  font-size: 0.82rem;
+}

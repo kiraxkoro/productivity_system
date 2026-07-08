@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ScheduleList from "./routes/scheduler/ScheduleList";
 import GoalList from "./routes/tracker/GoalList";
 import HabitList from "./routes/tracker/HabitList";
 import ProgressPanel from "./routes/tracker/ProgressPanel";
 import Dashboard from "./routes/dashboard/Dashboard";
 import ToastHost from "./routes/tracker/Toasts";
+import AuthGate, { signOut, useSession } from "./auth/AuthGate";
+import SettingsModal from "./SettingsModal";
 import {
   getXp,
   levelOf,
@@ -25,8 +27,17 @@ const NAV: { id: Page; icon: string; label: string }[] = [
 ];
 
 function App() {
+  return (
+    <AuthGate>
+      <Shell />
+    </AuthGate>
+  );
+}
+
+function Shell() {
   const [page, setPage] = useState<Page>("dashboard");
   const [query, setQuery] = useState("");
+  const [showSettings, setShowSettings] = useState(false);
   // a task card on the dashboard can jump straight to its open checklist
   const [focusGoalId, setFocusGoalId] = useState<string | null>(null);
 
@@ -54,7 +65,7 @@ function App() {
             </button>
           ))}
         </nav>
-        <ProfileBlock />
+        <ProfileBlock onOpenSettings={() => setShowSettings(true)} />
       </aside>
 
       <div className="main">
@@ -83,15 +94,20 @@ function App() {
           )}
         </main>
       </div>
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
       <ToastHost />
     </div>
   );
 }
 
-/** Sidebar footer: who you are + how far you've leveled. Stays live via the
- *  "xp-changed" event that applyTickXp fires on every tick. */
-function ProfileBlock() {
+/** Sidebar footer: who you are + how far you've leveled. Clicking it opens
+ *  the account menu (Settings / Log out). XP stays live via the "xp-changed"
+ *  event that applyTickXp fires on every tick. */
+function ProfileBlock({ onOpenSettings }: { onOpenSettings: () => void }) {
   const [xp, setXp] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const session = useSession();
+  const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     getXp()
@@ -102,21 +118,60 @@ function ProfileBlock() {
     return () => window.removeEventListener("xp-changed", onXp);
   }, []);
 
+  // any click outside the profile area closes the menu
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [menuOpen]);
+
   const level = levelOf(xp);
   const pct = (xpIntoLevel(xp) / xpNeededFor(level)) * 100;
+  const name = session?.user.email?.split("@")[0] ?? "You";
 
   return (
-    <div className="profile">
-      <div className="avatar">👤</div>
-      <div className="profile-info">
-        <div className="profile-name">You</div>
-        <div className="profile-level muted">
-          {rankOf(level)} · Level {level} · {xp} XP
+    <div className="profile-wrap" ref={wrapRef}>
+      {menuOpen && (
+        <div className="profile-menu">
+          <button
+            className="menu-item"
+            onClick={() => {
+              setMenuOpen(false);
+              onOpenSettings();
+            }}
+          >
+            ⚙️ Settings
+          </button>
+          <button
+            className="menu-item danger"
+            onClick={() => {
+              setMenuOpen(false);
+              void signOut();
+            }}
+          >
+            🚪 Log out
+          </button>
         </div>
-        <div className="profile-bar">
-          <div className="profile-bar-fill" style={{ width: `${pct}%` }} />
+      )}
+      <button
+        className={`profile ${menuOpen ? "open" : ""}`}
+        title={session?.user.email ?? "Account"}
+        onClick={() => setMenuOpen((o) => !o)}
+      >
+        <div className="avatar">👤</div>
+        <div className="profile-info">
+          <div className="profile-name">{name}</div>
+          <div className="profile-level muted">
+            {rankOf(level)} · Level {level} · {xp} XP
+          </div>
+          <div className="profile-bar">
+            <div className="profile-bar-fill" style={{ width: `${pct}%` }} />
+          </div>
         </div>
-      </div>
+      </button>
     </div>
   );
 }
