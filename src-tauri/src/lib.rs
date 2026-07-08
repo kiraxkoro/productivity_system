@@ -12,39 +12,47 @@ pub struct AppState {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        // must be first: relaunching the app just focuses the running instance
+    let builder = tauri::Builder::default();
+
+    // must be first: relaunching the app just focuses the running instance
+    #[cfg(desktop)]
+    let builder = builder
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             show_main_window(app);
         }))
-        .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec!["--hidden"]),
         ))
-        .setup(|app| {
-            let conn = db::init(app.handle())?;
-            app.manage(AppState { db: Mutex::new(conn) });
-            scheduler_loop::start(app.handle().clone());
-            blocklist_server::start(app.handle().clone());
-            setup_tray(app)?;
-            sync_autostart(app.handle());
-            // autostart launches us with --hidden: run in the tray, no window
-            if std::env::args().any(|a| a == "--hidden") {
-                if let Some(w) = app.get_webview_window("main") {
-                    let _ = w.hide();
-                }
-            }
-            Ok(())
-        })
         // closing the window hides to tray — the scheduler must keep running
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
                 let _ = window.hide();
             }
+        });
+
+    builder
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
+        .setup(|app| {
+            let conn = db::init(app.handle())?;
+            app.manage(AppState { db: Mutex::new(conn) });
+            scheduler_loop::start(app.handle().clone());
+            blocklist_server::start(app.handle().clone());
+            #[cfg(desktop)]
+            {
+                setup_tray(app)?;
+                sync_autostart(app.handle());
+                // autostart launches us with --hidden: run in the tray, no window
+                if std::env::args().any(|a| a == "--hidden") {
+                    if let Some(w) = app.get_webview_window("main") {
+                        let _ = w.hide();
+                    }
+                }
+            }
+            Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::schedules::create_schedule_block,
@@ -84,6 +92,7 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
+#[cfg(desktop)]
 fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
     use tauri::menu::{Menu, MenuItem};
     use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -116,6 +125,7 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
     Ok(())
 }
 
+#[cfg(desktop)]
 fn show_main_window(app: &tauri::AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
@@ -129,6 +139,7 @@ fn show_main_window(app: &tauri::AppHandle) {
 /// registered path so it always points at the current exe — otherwise it goes
 /// stale after installs/updates. Dev builds never touch autostart: only the
 /// installed app should own it.
+#[cfg(desktop)]
 fn sync_autostart(app: &tauri::AppHandle) {
     #[cfg(debug_assertions)]
     {
