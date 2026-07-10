@@ -1,6 +1,7 @@
 mod blocklist_server;
 mod commands;
 mod db;
+mod hosts_blocker;
 mod scheduler_loop;
 
 use std::sync::Mutex;
@@ -108,7 +109,12 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show" => show_main_window(app),
-            "quit" => app.exit(0),
+            "quit" => {
+                // quitting ends all blocking (same semantics as the extension:
+                // no Focus OS running = nothing blocked), so clean up hosts
+                crate::hosts_blocker::sync(&[]);
+                app.exit(0)
+            }
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {

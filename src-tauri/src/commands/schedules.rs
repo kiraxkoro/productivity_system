@@ -12,6 +12,7 @@ pub fn create_schedule_block(
 ) -> Result<ScheduleBlock, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     db::upsert_block(&conn, &block).map_err(|e| e.to_string())?;
+    request_hosts_access_if_needed(&block);
     Ok(block)
 }
 
@@ -22,7 +23,20 @@ pub fn update_schedule_block(
 ) -> Result<ScheduleBlock, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     db::upsert_block(&conn, &block).map_err(|e| e.to_string())?;
+    request_hosts_access_if_needed(&block);
     Ok(block)
+}
+
+/// Saving a block that blocks websites is the one moment the user is
+/// guaranteed to be at the keyboard, so the one-time UAC grant for hosts-file
+/// writes happens now — never at block start, when a surprise admin prompt
+/// would sit unanswered. Spawned so saving never waits on the dialog.
+fn request_hosts_access_if_needed(block: &ScheduleBlock) {
+    if block.actions.iter().any(|a| a.r#type == "closeTab") {
+        std::thread::spawn(|| {
+            crate::hosts_blocker::ensure_write_access();
+        });
+    }
 }
 
 #[tauri::command]
