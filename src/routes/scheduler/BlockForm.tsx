@@ -407,8 +407,9 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
             <span className="lockdown-text">
               <b>🔒 Block distracting sites</b>
               <small>
-                {DISTRACTION_SITES.join(", ")} — walled for the whole block
-                (needs the browser extension)
+                {DISTRACTION_SITES.join(", ")} — walled for the whole block.
+                Your browser restarts fresh when the block starts, so
+                already-open tabs can't slip through
               </small>
             </span>
             <span className="switch">

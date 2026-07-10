@@ -52,8 +52,9 @@ export const whitelistMode = (): BlockAction => ({
   target: "*",
 });
 
-/** Sites the "Block sites" pack locks out (needs the browser extension —
- *  see extension/README.md). Domains cover subdomains automatically. */
+/** Sites the "Block sites" pack locks out. Blocked via the hosts file (no
+ *  extension needed); the optional extension in extension/ adds instant
+ *  tab-closing and full subdomain coverage on top. */
 export const DISTRACTION_SITES = [
   "youtube.com",
   "instagram.com",
