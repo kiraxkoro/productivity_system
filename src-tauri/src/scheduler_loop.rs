@@ -48,8 +48,12 @@ pub fn start(app: AppHandle) {
         let mut last_active: Option<ScheduleBlock> = None;
         // "block-id|date" we already sent the heads-up notification for
         let mut warned_for: Option<String> = None;
+        // domains currently written to the hosts file; None = not synced yet,
+        // so the first tick always runs a sync (cleans stale entries after a
+        // crash, re-applies them when launched mid-block)
+        let mut hosts_domains: Option<Vec<String>> = None;
         loop {
-            tick(&app, &mut last_active, &mut warned_for);
+            tick(&app, &mut last_active, &mut warned_for, &mut hosts_domains);
             std::thread::sleep(Duration::from_secs(POLL_SECS));
         }
     });
@@ -67,7 +71,12 @@ fn notify(app: &AppHandle, title: &str, body: &str) {
     let _ = app.notification().builder().title(title).body(body).show();
 }
 
-fn tick(app: &AppHandle, last_active: &mut Option<ScheduleBlock>, warned_for: &mut Option<String>) {
+fn tick(
+    app: &AppHandle,
+    last_active: &mut Option<ScheduleBlock>,
+    warned_for: &mut Option<String>,
+    hosts_domains: &mut Option<Vec<String>>,
+) {
     let state = app.state::<AppState>();
     let (current, next, allowed, paused) = {
         let conn = match state.db.lock() {
@@ -82,6 +91,19 @@ fn tick(app: &AppHandle, last_active: &mut Option<ScheduleBlock>, warned_for: &m
             is_paused(&conn),
         )
     };
+
+    // Hosts-file website blocking (works with zero extension installed).
+    // Runs before the early returns below so pauses and app launches
+    // mid-block always reconcile the hosts file.
+    let desired = if paused {
+        Vec::new()
+    } else {
+        current.as_ref().map(hosts_blocklist).unwrap_or_default()
+    };
+    if hosts_domains.as_ref() != Some(&desired) {
+        crate::hosts_blocker::sync(&desired);
+        *hosts_domains = Some(desired);
+    }
 
     // Heads-up before the hammer drops: "wrap up, lockdown incoming".
     if let Some(nb) = &next {
@@ -168,6 +190,26 @@ fn wants_browser_lockdown(block: &ScheduleBlock) -> bool {
         .actions
         .iter()
         .any(|a| a.trigger == "onStart" && a.r#type == "closeApp" && is_browser(&a.target))
+}
+
+/// The domains this block should push into the hosts file: its closeTab
+/// targets, normalized and sorted (stable order makes change detection
+/// trivial). Whitelist-mode blocks return nothing — a hosts file can't say
+/// "block everything except X", so that mode stays extension-only.
+fn hosts_blocklist(block: &ScheduleBlock) -> Vec<String> {
+    if wants_whitelist(block) {
+        return Vec::new();
+    }
+    let mut domains: Vec<String> = block
+        .actions
+        .iter()
+        .filter(|a| a.r#type == "closeTab")
+        .map(|a| crate::blocklist_server::normalize_domain(&a.target))
+        .filter(|d| !d.is_empty())
+        .collect();
+    domains.sort();
+    domains.dedup();
+    domains
 }
 
 /// closeApp "*" = whitelist mode: only apps this block opens may run.
@@ -281,8 +323,9 @@ fn run_action(action: &BlockAction) {
         "openApp" | "openTab" => open_target(action.target.trim()),
         "closeApp" => close_process(action.target.trim()),
         "closeTab" => {
-            // handled by the browser extension: it polls blocklist_server and
-            // blocks matching tabs for the whole block — nothing to do here
+            // handled elsewhere for the whole block: the hosts file blocks the
+            // domain in every browser (hosts_blocker), and the extension —
+            // when installed — also redirects already-open tabs
             Ok(())
         }
         other => {
