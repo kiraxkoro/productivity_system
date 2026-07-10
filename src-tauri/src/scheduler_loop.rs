@@ -300,6 +300,15 @@ fn run_actions(block: &ScheduleBlock, trigger: &str, allowed: &str) {
         .iter()
         .filter(|a| a.trigger == trigger)
         .partition(|a| a.r#type.starts_with("close"));
+    // Hosts-file site blocking only stops NEW dns lookups — tabs opened
+    // before the block (and their live connections) would keep streaming.
+    // Restarting the browser at block start makes every blocked site
+    // actually blocked from second one, extension or not.
+    let fresh_browser =
+        trigger == "onStart" && block.actions.iter().any(|a| a.r#type == "closeTab");
+    if fresh_browser {
+        let _ = close_process(allowed);
+    }
     for action in &closes {
         run_action(action);
     }
@@ -308,7 +317,7 @@ fn run_actions(block: &ScheduleBlock, trigger: &str, allowed: &str) {
     if trigger == "onStart" && wants_browser_lockdown(block) {
         close_other_browsers(allowed);
     }
-    if !closes.is_empty() && !opens.is_empty() {
+    if (!closes.is_empty() || fresh_browser) && !opens.is_empty() {
         // let killed apps (especially browsers) fully die so the open actions
         // launch a fresh instance instead of racing the dying one
         std::thread::sleep(Duration::from_millis(1500));
