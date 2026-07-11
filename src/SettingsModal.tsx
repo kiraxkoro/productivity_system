@@ -4,6 +4,7 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "./auth/AuthGate";
+import { isMobilePlatform } from "./shared/platform";
 import {
   getAllowedBrowser,
   getAutostart,
@@ -104,21 +105,23 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
           </div>
         )}
 
-        {autostart !== null && (
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={autostart}
-              onChange={() => void toggleAutostart()}
-            />
-            start automatically with the system (recommended)
-          </label>
+        {autostart !== null && !isMobilePlatform && (
+          <>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={autostart}
+                onChange={() => void toggleAutostart()}
+              />
+              start automatically with the system (recommended)
+            </label>
+            <p className="muted small">
+              Closing the window doesn't quit Focus OS — it keeps running in
+              the system tray so your schedule always fires. Right-click the
+              tray icon to quit completely.
+            </p>
+          </>
         )}
-        <p className="muted small">
-          Closing the window doesn't quit Focus OS — it keeps running in the
-          system tray so your schedule always fires. Right-click the tray icon
-          to quit completely.
-        </p>
 
         <label className="check pw-row">
           🔑 commitment password {hasPw ? "(set)" : "(not set)"}:
@@ -139,26 +142,31 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
           Also required to break a running block; can't be changed mid-block.
         </p>
 
-        <label className="check browser-pick">
-          your browser:
-          <select
-            value={browser}
-            onChange={(e) => void changeBrowser(e.currentTarget.value)}
-          >
-            {(browserList.some((b) => b.exe === browser)
-              ? browserList
-              : [...browserList, { name: browser, exe: browser }]
-            ).map((b) => (
-              <option key={b.exe} value={b.exe}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <p className="muted small">
-          This one survives lockdown blocks (put the extension here and enable
-          "Allow in Incognito"); all others get closed &amp; kept closed.
-        </p>
+        {!isMobilePlatform && (
+          <>
+            <label className="check browser-pick">
+              your browser:
+              <select
+                value={browser}
+                onChange={(e) => void changeBrowser(e.currentTarget.value)}
+              >
+                {(browserList.some((b) => b.exe === browser)
+                  ? browserList
+                  : [...browserList, { name: browser, exe: browser }]
+                ).map((b) => (
+                  <option key={b.exe} value={b.exe}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="muted small">
+              This one survives lockdown blocks (put the extension here and
+              enable "Allow in Incognito"); all others get closed &amp; kept
+              closed.
+            </p>
+          </>
+        )}
 
         {notice && <p className="auth-notice">{notice}</p>}
         {error && <p className="form-error">{error}</p>}

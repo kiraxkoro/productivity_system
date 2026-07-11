@@ -83,7 +83,14 @@ pub fn open_target(target: &str) -> Result<(), String> {
     if target.is_empty() {
         return Err("empty target".into());
     }
-    #[cfg(target_os = "windows")]
+    #[cfg(mobile)]
+    {
+        // Sandboxed OSes don't let one app launch an arbitrary path/exe the
+        // way desktop does; a URL could still be opened via the shell plugin
+        // from the frontend if this becomes worth supporting on mobile.
+        return Err("Opening apps/files isn't supported on mobile".into());
+    }
+    #[cfg(all(desktop, target_os = "windows"))]
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -116,7 +123,7 @@ pub fn open_target(target: &str) -> Result<(), String> {
             .map_err(|e| format!("failed to open '{target}': {e}"))?;
         Ok(())
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(all(desktop, not(target_os = "windows")))]
     {
         let opener = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
         std::process::Command::new(opener)
@@ -138,7 +145,14 @@ pub fn close_process(name: &str) -> Result<(), String> {
         // via taskkill /IM * (which would be a massacre)
         return Ok(());
     }
-    #[cfg(target_os = "windows")]
+    #[cfg(mobile)]
+    {
+        // Sandboxed OSes don't let one app kill another — there's no mobile
+        // equivalent of taskkill/pkill. Callers already treat this as a
+        // best-effort action, so failing loud here just surfaces the truth.
+        return Err("Closing other apps isn't supported on mobile".into());
+    }
+    #[cfg(all(desktop, target_os = "windows"))]
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -165,7 +179,7 @@ pub fn close_process(name: &str) -> Result<(), String> {
             Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
         }
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(all(desktop, not(target_os = "windows")))]
     {
         let out = std::process::Command::new("pkill")
             .args(["-f", name])

@@ -46,6 +46,11 @@ function Shell() {
     setPage("tasks");
   }
 
+  function goTo(id: Page) {
+    if (id !== "tasks") setFocusGoalId(null);
+    setPage(id);
+  }
+
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -55,10 +60,7 @@ function Shell() {
             <button
               key={n.id}
               className={page === n.id ? "side-item on" : "side-item"}
-              onClick={() => {
-                if (n.id !== "tasks") setFocusGoalId(null);
-                setPage(n.id);
-              }}
+              onClick={() => goTo(n.id)}
             >
               <span className="side-icon">{n.icon}</span>
               <span className="side-label">{n.label}</span>
@@ -67,6 +69,21 @@ function Shell() {
         </nav>
         <ProfileBlock onOpenSettings={() => setShowSettings(true)} />
       </aside>
+
+      {/* phone-width nav: bottom tab bar replaces the vertical rail —
+          see the max-width: 560px block in App.css */}
+      <nav className="bottom-nav">
+        {NAV.map((n) => (
+          <button
+            key={n.id}
+            className={page === n.id ? "bottom-nav-item on" : "bottom-nav-item"}
+            onClick={() => goTo(n.id)}
+          >
+            <span className="bottom-nav-icon">{n.icon}</span>
+            <span className="bottom-nav-label">{n.label}</span>
+          </button>
+        ))}
+      </nav>
 
       <div className="main">
         {page === "dashboard" && (

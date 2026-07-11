@@ -43,6 +43,7 @@ import {
   TEMPLATES,
   type Template,
 } from "./presets";
+import { isMobilePlatform } from "../../shared/platform";
 import "./scheduler.css";
 
 const FOCUS_DURATIONS = [25, 50, 90];
@@ -174,7 +175,7 @@ export default function ScheduleList() {
       startTime: start,
       endTime: end,
       daysOfWeek: [new Date().getDay()],
-      actions: killDistractions
+      actions: killDistractions && !isMobilePlatform
         ? [...distractionBlockers(), ...siteBlockers()]
         : [],
       enabled: true,
@@ -357,14 +358,21 @@ export default function ScheduleList() {
               {m} min
             </button>
           ))}
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={killDistractions}
-              onChange={(e) => setKillDistractions(e.currentTarget.checked)}
-            />
-            lockdown — distracting apps closed & kept closed, sites blocked
-          </label>
+          {isMobilePlatform ? (
+            <p className="muted small">
+              📱 On mobile, blocks run as timers with notifications —
+              closing apps &amp; blocking sites needs the desktop app.
+            </p>
+          ) : (
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={killDistractions}
+                onChange={(e) => setKillDistractions(e.currentTarget.checked)}
+              />
+              lockdown — distracting apps closed & kept closed, sites blocked
+            </label>
+          )}
         </div>
       </section>
 
@@ -449,7 +457,7 @@ export default function ScheduleList() {
       </div>
       </div>
 
-      {autostart !== null && (
+      {autostart !== null && !isMobilePlatform && (
         <section className="card">
           <h3>
             ⚙️ Runs by itself{" "}
