@@ -185,6 +185,17 @@ pub fn emergency_pause(state: State<AppState>, minutes: u32) -> Result<String, S
     Ok(until.format("%H:%M").to_string())
 }
 
+/// Epoch seconds until which enforcement is paused; 0 = not paused. The
+/// mobile UI polls this so the native app blocker honors emergency pauses.
+#[tauri::command]
+pub fn get_pause_until(state: State<AppState>) -> Result<i64, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    Ok(db::get_setting(&conn, PAUSE_UNTIL_KEY)
+        .and_then(|v| v.parse::<i64>().ok())
+        .filter(|until| chrono::Local::now().timestamp() < *until)
+        .unwrap_or(0))
+}
+
 #[tauri::command]
 pub fn has_commitment_password(state: State<AppState>) -> Result<bool, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;

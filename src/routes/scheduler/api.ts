@@ -30,6 +30,8 @@ export const listBrowsers = () =>
 /** Pauses enforcement + site blocking; resolves to the "HH:MM" resume time. */
 export const emergencyPause = (minutes: number) =>
   invoke<string>("emergency_pause", { minutes });
+/** Epoch seconds the current emergency pause runs until; 0 = not paused. */
+export const getPauseUntil = () => invoke<number>("get_pause_until");
 export const hasCommitmentPassword = () =>
   invoke<boolean>("has_commitment_password");
 export const setCommitmentPassword = (password: string) =>

@@ -12,7 +12,9 @@
 // actions fire once — intentional: opening Focus OS mid-block sets up your
 // workspace for you.
 
-use crate::commands::schedules::{close_process, open_target};
+use crate::commands::schedules::close_process;
+#[cfg(desktop)]
+use crate::commands::schedules::open_target;
 use crate::commands::system::{all_browser_exes, allowed_browser, is_paused};
 use crate::db::{self, BlockAction, ScheduleBlock};
 use crate::AppState;
@@ -131,6 +133,7 @@ fn tick(
         if paused {
             return;
         }
+        #[cfg(desktop)]
         if let Some(block) = current.as_ref() {
             for action in block.actions.iter().filter(|a| {
                 a.trigger == "onStart"
@@ -179,6 +182,7 @@ fn is_browser(target: &str) -> bool {
         .any(|b| t == *b || t.ends_with(&format!("\\{b}")))
 }
 
+#[cfg(desktop)] // only the desktop enforcement path re-kills by browser exe
 fn is_same_browser(target: &str, browser_exe: &str) -> bool {
     let t = target.trim().to_ascii_lowercase();
     t == browser_exe || t.ends_with(&format!("\\{browser_exe}"))
@@ -328,6 +332,20 @@ fn run_actions(block: &ScheduleBlock, trigger: &str, allowed: &str) {
 }
 
 fn run_action(action: &BlockAction) {
+    // On mobile, closeApp targets are Android package names enforced natively
+    // (AppBlockerService, driven from the WebView) — Rust can't open or close
+    // anything there, so actions are pure markers.
+    #[cfg(mobile)]
+    {
+        let _ = action;
+        return;
+    }
+    #[cfg(desktop)]
+    run_action_desktop(action);
+}
+
+#[cfg(desktop)]
+fn run_action_desktop(action: &BlockAction) {
     let result = match action.r#type.as_str() {
         "openApp" | "openTab" => open_target(action.target.trim()),
         "closeApp" => close_process(action.target.trim()),

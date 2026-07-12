@@ -45,6 +45,22 @@ import {
   type Template,
 } from "./presets";
 import { isMobilePlatform } from "../../shared/platform";
+import {
+  hasNativeBlocker,
+  hasOverlayPermission,
+  hasUsageAccess,
+  listInstalledApps,
+  requestOverlayPermission,
+  requestUsageAccess,
+  type InstalledApp,
+} from "../../shared/native";
+import { BLOCKS_CHANGED } from "../../shared/useNativeBlockSync";
+import {
+  getBlockedPackages,
+  MOBILE_DISTRACTIONS,
+  mobileAppBlockers,
+  setBlockedPackages,
+} from "./mobileApps";
 import "./scheduler.css";
 
 const FOCUS_DURATIONS = [25, 50, 90];
@@ -79,10 +95,19 @@ export default function ScheduleList() {
   const [lastMinutes, setLastMinutes] = useState(25);
   const settingsRef = useRef<HTMLElement>(null);
 
+  // ---- mobile app blocking (AppBlockerService via window.FocusOSNative;
+  //      the start/stop driving lives app-wide in useNativeBlockSync) ----
+  const nativeBlocking = isMobilePlatform && hasNativeBlocker();
+  const [blockedPkgs, setBlockedPkgs] = useState<string[]>(getBlockedPackages);
+  const [perm, setPerm] = useState({ usage: true, overlay: true });
+
   const refresh = useCallback(async () => {
     try {
       setBlocks(await listBlocks());
       setLoadError("");
+      // nudge the app-wide native sync (Android app blocker) right away
+      // instead of waiting for its safety-net poll
+      window.dispatchEvent(new Event(BLOCKS_CHANGED));
     } catch (e) {
       setLoadError(String(e));
     }
@@ -118,6 +143,25 @@ export default function ScheduleList() {
       .catch(() => {});
     hasCommitmentPassword().then(setHasPw).catch(() => {});
   }, []);
+
+  // Permission checks are cheap sync bridge calls; re-check whenever the app
+  // regains focus — that's exactly when the user comes back from Settings.
+  useEffect(() => {
+    if (!nativeBlocking) return;
+    const check = () =>
+      setPerm({ usage: hasUsageAccess(), overlay: hasOverlayPermission() });
+    check();
+    window.addEventListener("focus", check);
+    document.addEventListener("visibilitychange", check);
+    return () => {
+      window.removeEventListener("focus", check);
+      document.removeEventListener("visibilitychange", check);
+    };
+  }, [nativeBlocking]);
+
+  useEffect(() => {
+    if (isMobilePlatform) setBlockedPackages(blockedPkgs);
+  }, [blockedPkgs]);
 
   async function savePassword() {
     try {
@@ -179,23 +223,33 @@ export default function ScheduleList() {
       startTime: start,
       endTime: end,
       daysOfWeek: [new Date().getDay()],
-      actions: killDistractions && !isMobilePlatform
-        ? [...distractionBlockers(), ...siteBlockers()]
-        : [],
+      actions: !killDistractions
+        ? []
+        : isMobilePlatform
+          ? mobileAppBlockers(blockedPkgs)
+          : [...distractionBlockers(), ...siteBlockers()],
       enabled: true,
       oneOffDate: todayISO(),
     };
     try {
       await createBlock(block);
       // instant gratification: banner lights up and distraction apps die NOW,
-      // instead of waiting for the next 15s scheduler tick
+      // instead of waiting for the next 15s scheduler tick (on mobile the
+      // native-sync effect starts the blocker service the moment the block
+      // lands in state)
       setBlocks((prev) => [...prev, block]);
-      for (const a of block.actions) {
-        if (a.type === "closeApp") void closeApp(a.target).catch(() => {});
+      if (!isMobilePlatform) {
+        for (const a of block.actions) {
+          if (a.type === "closeApp") void closeApp(a.target).catch(() => {});
+        }
       }
       setFlash(
         `🔒 Locked in — ${minutes} min, ends at ${fmtTime(end)}.` +
-          (killDistractions ? " Distracting apps closed, sites blocked." : ""),
+          (killDistractions
+            ? isMobilePlatform
+              ? " Distracting apps are walled off."
+              : " Distracting apps closed, sites blocked."
+            : ""),
       );
       setTimeout(() => setFlash(""), 6000);
       await refresh();
@@ -384,6 +438,7 @@ export default function ScheduleList() {
         }}
         killDistractions={killDistractions}
         onKillChange={setKillDistractions}
+        nativeBlocking={nativeBlocking}
         onStop={(b) => setConfess({ kind: "stop", block: b })}
         onEmergency={() => setConfess({ kind: "pause" })}
         onGear={() =>
@@ -391,6 +446,21 @@ export default function ScheduleList() {
         }
       />
 
+      {nativeBlocking && !(perm.usage && perm.overlay) && (
+        <PermissionsCard perm={perm} />
+      )}
+
+      {isMobilePlatform && (
+        <MobileAppsCard
+          nativeAvailable={nativeBlocking}
+          selected={blockedPkgs}
+          onChange={setBlockedPkgs}
+        />
+      )}
+
+      {/* Templates open apps & sites — desktop territory. The mobile
+          scheduler is blocking-only. */}
+      {!isMobilePlatform && (
       <section className="card">
         <h3>
           📦 Templates{" "}
@@ -430,6 +500,7 @@ export default function ScheduleList() {
           </button>
         </div>
       </section>
+      )}
       </div>
 
       <div className="sched-col">
@@ -460,7 +531,9 @@ export default function ScheduleList() {
         </p>
         {todayBlocks.length === 0 ? (
           <p className="muted">
-            Nothing planned today. Hit a template — future you says thanks.
+            {isMobilePlatform
+              ? "Nothing planned today. Add a lockdown block — future you says thanks."
+              : "Nothing planned today. Hit a template — future you says thanks."}
           </p>
         ) : (
           <Timeline
@@ -469,6 +542,17 @@ export default function ScheduleList() {
             onToggle={handleToggle}
             onDelete={handleDelete}
           />
+        )}
+        {isMobilePlatform && (
+          <>
+            <button className="chip" onClick={() => openNewForm()}>
+              ＋ Schedule a lockdown block
+            </button>
+            <p className="muted small">
+              Once a session starts, blocking runs on its own — but a scheduled
+              block can only arm itself while Focus OS is open.
+            </p>
+          </>
         )}
       </section>
 
@@ -673,6 +757,7 @@ function FocusTimerCard({
   onPick,
   killDistractions,
   onKillChange,
+  nativeBlocking,
   onStop,
   onEmergency,
   onGear,
@@ -683,6 +768,7 @@ function FocusTimerCard({
   onPick: (minutes: number) => void;
   killDistractions: boolean;
   onKillChange: (on: boolean) => void;
+  nativeBlocking: boolean;
   onStop: (b: ScheduleBlock) => void;
   onEmergency: () => void;
   onGear: () => void;
@@ -764,10 +850,11 @@ function FocusTimerCard({
         </p>
       )}
 
-      {isMobilePlatform ? (
+      {isMobilePlatform && !nativeBlocking ? (
         <p className="muted small">
-          📱 On mobile, blocks run as timers with notifications — closing apps
-          &amp; blocking sites needs the desktop app.
+          📱 This build can't block apps yet — blocks run as timers with
+          notifications. Update the app (or use the desktop version) for
+          Lockdown Mode.
         </p>
       ) : (
         <div className="hero-lockdown">
@@ -779,7 +866,11 @@ function FocusTimerCard({
             />
             <span className="slider" />
           </label>
-          <span>Lockdown — distracting apps closed &amp; sites blocked</span>
+          <span>
+            {isMobilePlatform
+              ? "Lockdown Mode — block distracting apps during the session"
+              : "Lockdown — distracting apps closed & sites blocked"}
+          </span>
         </div>
       )}
     </section>
@@ -903,6 +994,127 @@ function Timeline({
         );
       })}
     </div>
+  );
+}
+
+/** Mobile one-time setup: the two special permissions Android demands before
+ *  an app may watch the foreground app and draw over it. Hidden once granted. */
+function PermissionsCard({
+  perm,
+}: {
+  perm: { usage: boolean; overlay: boolean };
+}) {
+  return (
+    <section className="card perm-card">
+      <h3>
+        🔐 One-time setup{" "}
+        <span className="muted">so Lockdown Mode can actually block</span>
+      </h3>
+      <div className="perm-row">
+        <span className="perm-text">
+          {perm.usage ? "✅" : "1️⃣"} <b>Usage access</b>
+          <small className="muted">
+            {" "}
+            — lets Focus OS see which app is in front
+          </small>
+        </span>
+        {!perm.usage && (
+          <button className="chip" onClick={requestUsageAccess}>
+            Grant
+          </button>
+        )}
+      </div>
+      <div className="perm-row">
+        <span className="perm-text">
+          {perm.overlay ? "✅" : "2️⃣"} <b>Display over other apps</b>
+          <small className="muted"> — shows the blocking screen</small>
+        </span>
+        {!perm.overlay && (
+          <button className="chip" onClick={requestOverlayPermission}>
+            Grant
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/** Mobile block list editor: presets first, plus anything installed on the
+ *  phone. Selection persists locally and applies to every lockdown session. */
+function MobileAppsCard({
+  nativeAvailable,
+  selected,
+  onChange,
+}: {
+  nativeAvailable: boolean;
+  selected: string[];
+  onChange: (pkgs: string[]) => void;
+}) {
+  // null = not asked yet; the installed list only loads on demand
+  const [installed, setInstalled] = useState<InstalledApp[] | null>(null);
+
+  const toggle = (pkg: string) =>
+    onChange(
+      selected.includes(pkg)
+        ? selected.filter((p) => p !== pkg)
+        : [...selected, pkg],
+    );
+
+  const presetPkgs = new Set(MOBILE_DISTRACTIONS.map((d) => d.pkg));
+  const extras = (installed ?? [])
+    .filter((a) => !presetPkgs.has(a.package))
+    .sort((a, b) => a.label.localeCompare(b.label));
+  // still render selections we can't resolve to a label (picked on an earlier
+  // run) so they can always be unticked
+  const unknownSelected = selected.filter(
+    (p) => !presetPkgs.has(p) && !extras.some((a) => a.package === p),
+  );
+
+  return (
+    <section className="card">
+      <h3>
+        🚫 Apps to block{" "}
+        <span className="muted">during lockdown sessions</span>
+      </h3>
+      <div className="app-pick-list">
+        {MOBILE_DISTRACTIONS.map((d) => (
+          <label key={d.pkg} className="check">
+            <input
+              type="checkbox"
+              checked={selected.includes(d.pkg)}
+              onChange={() => toggle(d.pkg)}
+            />
+            {d.label}
+          </label>
+        ))}
+        {unknownSelected.map((pkg) => (
+          <label key={pkg} className="check">
+            <input type="checkbox" checked onChange={() => toggle(pkg)} />
+            {pkg}
+          </label>
+        ))}
+        {extras.map((a) => (
+          <label key={a.package} className="check">
+            <input
+              type="checkbox"
+              checked={selected.includes(a.package)}
+              onChange={() => toggle(a.package)}
+            />
+            {a.label}
+          </label>
+        ))}
+      </div>
+      {nativeAvailable && installed === null && (
+        <button className="chip" onClick={() => setInstalled(listInstalledApps())}>
+          ＋ Pick from installed apps
+        </button>
+      )}
+      {installed !== null && installed.length === 0 && (
+        <p className="muted small">
+          Couldn't read the installed app list on this device.
+        </p>
+      )}
+    </section>
   );
 }
 

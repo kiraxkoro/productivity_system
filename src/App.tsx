@@ -7,6 +7,7 @@ import Dashboard from "./routes/dashboard/Dashboard";
 import ToastHost from "./routes/tracker/Toasts";
 import AuthGate, { signOut, useSession } from "./auth/AuthGate";
 import SettingsModal from "./SettingsModal";
+import { useNativeBlockSync } from "./shared/useNativeBlockSync";
 import {
   getXp,
   levelOf,
@@ -26,6 +27,10 @@ const NAV: { id: Page; icon: string; label: string }[] = [
   { id: "progress", icon: "🏆", label: "Progress" },
 ];
 
+// Phone tab bar keeps the four core destinations; Progress lives in the
+// profile menu next to the avatar instead (the header already shows rank/XP).
+const BOTTOM_NAV = NAV.filter((n) => n.id !== "progress");
+
 function App() {
   return (
     <AuthGate>
@@ -35,6 +40,8 @@ function App() {
 }
 
 function Shell() {
+  // keeps the Android app blocker in step with the active block on any page
+  useNativeBlockSync();
   const [page, setPage] = useState<Page>("dashboard");
   const [query, setQuery] = useState("");
   const [showSettings, setShowSettings] = useState(false);
@@ -67,13 +74,16 @@ function Shell() {
             </button>
           ))}
         </nav>
-        <ProfileBlock onOpenSettings={() => setShowSettings(true)} />
+        <ProfileBlock
+          onOpenSettings={() => setShowSettings(true)}
+          onOpenProgress={() => goTo("progress")}
+        />
       </aside>
 
       {/* phone-width nav: bottom tab bar replaces the vertical rail —
           see the max-width: 560px block in App.css */}
       <nav className="bottom-nav">
-        {NAV.map((n) => (
+        {BOTTOM_NAV.map((n) => (
           <button
             key={n.id}
             className={page === n.id ? "bottom-nav-item on" : "bottom-nav-item"}
@@ -120,7 +130,13 @@ function Shell() {
 /** Sidebar footer: who you are + how far you've leveled. Clicking it opens
  *  the account menu (Settings / Log out). XP stays live via the "xp-changed"
  *  event that applyTickXp fires on every tick. */
-function ProfileBlock({ onOpenSettings }: { onOpenSettings: () => void }) {
+function ProfileBlock({
+  onOpenSettings,
+  onOpenProgress,
+}: {
+  onOpenSettings: () => void;
+  onOpenProgress: () => void;
+}) {
   const [xp, setXp] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const session = useSession();
@@ -153,6 +169,15 @@ function ProfileBlock({ onOpenSettings }: { onOpenSettings: () => void }) {
     <div className="profile-wrap" ref={wrapRef}>
       {menuOpen && (
         <div className="profile-menu">
+          <button
+            className="menu-item"
+            onClick={() => {
+              setMenuOpen(false);
+              onOpenProgress();
+            }}
+          >
+            🏆 Progress
+          </button>
           <button
             className="menu-item"
             onClick={() => {

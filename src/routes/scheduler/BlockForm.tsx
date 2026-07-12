@@ -22,6 +22,12 @@ import {
   siteBlockers,
   whitelistMode,
 } from "./presets";
+import {
+  getBlockedPackages,
+  MOBILE_DISTRACTIONS,
+  mobileAppBlockers,
+} from "./mobileApps";
+import { isMobilePlatform } from "../../shared/platform";
 
 interface Props {
   initial: ScheduleBlock;
@@ -108,11 +114,39 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
     getAllowedBrowser().then(setAllowedBrowserState).catch(() => {});
   }, []);
 
+  // Mobile: the app list lives on the Scheduler page; the form just shows
+  // what the toggle will block. Read once — the modal is short-lived.
+  const [mobileSelection] = useState<string[]>(() =>
+    isMobilePlatform ? getBlockedPackages() : [],
+  );
+  const mobileSelectionNames = mobileSelection
+    .map(
+      (pkg) =>
+        MOBILE_DISTRACTIONS.find((d) => d.pkg === pkg)?.label ??
+        pkg.split(".").pop() ??
+        pkg,
+    )
+    .slice(0, 4)
+    .join(", ")
+    .concat(mobileSelection.length > 4 ? ", …" : "");
+
   // Split the incoming actions into the three lockdown packs + custom rows.
   // Brand-new empty blocks get full lockdown ON — that's the whole point.
   // Any closeApp aimed at a browser counts as the fresh-browser flag,
   // regardless of WHICH browser an older block targeted.
+  // On mobile the split is trivial: any closeApp action = "block apps" on
+  // (targets are Android packages there, enforced by AppBlockerService).
   const [initialSplit] = useState(() => {
+    if (isMobilePlatform) {
+      const blank = isNew && initial.actions.length === 0;
+      return {
+        fresh: false,
+        apps: blank || initial.actions.some((a) => a.type === "closeApp"),
+        sites: false,
+        strict: false,
+        custom: [] as BlockAction[],
+      };
+    }
     const browserProcs = BROWSERS.map((b) => b.process.toLowerCase());
     const isBrowserClose = (a: BlockAction) =>
       a.type === "closeApp" &&
@@ -252,13 +286,17 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
       daysOfWeek: oneOffDate
         ? [dayOfDate(oneOffDate)]
         : [...days].sort((a, b) => a - b),
-      actions: [
-        ...(fresh ? [freshBrowser(allowedBrowser)] : []),
-        ...(strict ? [whitelistMode()] : []),
-        ...(apps ? distractionBlockers() : []),
-        ...(sites ? siteBlockers() : []),
-        ...custom,
-      ],
+      actions: isMobilePlatform
+        ? apps
+          ? mobileAppBlockers(getBlockedPackages())
+          : []
+        : [
+            ...(fresh ? [freshBrowser(allowedBrowser)] : []),
+            ...(strict ? [whitelistMode()] : []),
+            ...(apps ? distractionBlockers() : []),
+            ...(sites ? siteBlockers() : []),
+            ...custom,
+          ],
       oneOffDate,
     });
   }
@@ -362,6 +400,32 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
           )}
         </div>
 
+        {isMobilePlatform ? (
+          <div className="field">
+            <span>
+              Lockdown{" "}
+              <em className="muted">— what happens while this block runs</em>
+            </span>
+            <label className="lockdown-row">
+              <span className="lockdown-text">
+                <b>🚫 Block distracting apps</b>
+                <small>
+                  {mobileSelection.length > 0
+                    ? `${mobileSelection.length} apps walled off (${mobileSelectionNames}) — change the list on the Scheduler page`
+                    : "no apps selected yet — pick them on the Scheduler page"}
+                </small>
+              </span>
+              <span className="switch">
+                <input
+                  type="checkbox"
+                  checked={apps}
+                  onChange={(e) => setApps(e.currentTarget.checked)}
+                />
+                <span className="slider" />
+              </span>
+            </label>
+          </div>
+        ) : (
         <div className="field">
           <span>
             Lockdown{" "}
@@ -440,7 +504,9 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
             </span>
           </label>
         </div>
+        )}
 
+        {!isMobilePlatform && (
         <div className="field">
           <span>
             Also do this{" "}
@@ -591,6 +657,7 @@ export default function BlockForm({ initial, isNew, onSave, onCancel }: Props) {
             ))}
           </datalist>
         </div>
+        )}
 
         {error && <p className="form-error">{error}</p>}
 

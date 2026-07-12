@@ -70,6 +70,7 @@ pub fn run() {
             commands::system::set_allowed_browser,
             commands::system::list_browsers,
             commands::system::emergency_pause,
+            commands::system::get_pause_until,
             commands::system::has_commitment_password,
             commands::system::set_commitment_password,
             commands::system::verify_commitment_password,
