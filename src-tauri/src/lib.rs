@@ -1,7 +1,8 @@
 mod blocklist_server;
-mod commands;
+// pub: the mac_blocking integration tests drive these directly
+pub mod commands;
 mod db;
-mod hosts_blocker;
+pub mod hosts_blocker;
 mod scheduler_loop;
 
 use std::sync::Mutex;
