@@ -123,10 +123,30 @@ pub fn open_target(target: &str) -> Result<(), String> {
             .map_err(|e| format!("failed to open '{target}': {e}"))?;
         Ok(())
     }
-    #[cfg(all(desktop, not(target_os = "windows")))]
+    #[cfg(all(desktop, target_os = "macos"))]
     {
-        let opener = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
-        std::process::Command::new(opener)
+        // `open` handles URLs, schemes and paths; bare app names ("chrome",
+        // "code") fail there, so those get a second try as an application.
+        let direct = std::process::Command::new("open").arg(target).output();
+        if matches!(&direct, Ok(o) if o.status.success()) {
+            return Ok(());
+        }
+        let out = std::process::Command::new("open")
+            .args(["-a", &mac_app_name(target)])
+            .output()
+            .map_err(|e| format!("failed to open '{target}': {e}"))?;
+        if out.status.success() {
+            Ok(())
+        } else {
+            Err(format!(
+                "failed to open '{target}': {}",
+                String::from_utf8_lossy(&out.stderr).trim()
+            ))
+        }
+    }
+    #[cfg(all(desktop, not(any(target_os = "windows", target_os = "macos"))))]
+    {
+        std::process::Command::new("xdg-open")
             .arg(target)
             .spawn()
             .map_err(|e| format!("failed to open '{target}': {e}"))?;
@@ -179,7 +199,25 @@ pub fn close_process(name: &str) -> Result<(), String> {
             Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
         }
     }
-    #[cfg(all(desktop, not(target_os = "windows")))]
+    #[cfg(all(desktop, target_os = "macos"))]
+    {
+        // Stored targets stay canonical Windows names ("chrome.exe",
+        // "WhatsApp*") so blocks keep working when data syncs across
+        // machines; here they're translated to the Mac binary. Killing an
+        // app's main process takes its helper processes down with it.
+        let pattern = format!("MacOS/{}$", regex_escape(&mac_binary_name(name)));
+        let out = std::process::Command::new("pkill")
+            .args(["-i", "-f", &pattern])
+            .output()
+            .map_err(|e| e.to_string())?;
+        // pkill exits 1 when nothing matched (already closed)
+        if out.status.success() || out.status.code() == Some(1) {
+            Ok(())
+        } else {
+            Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
+        }
+    }
+    #[cfg(all(desktop, not(any(target_os = "windows", target_os = "macos"))))]
     {
         let out = std::process::Command::new("pkill")
             .args(["-f", name])
@@ -192,4 +230,61 @@ pub fn close_process(name: &str) -> Result<(), String> {
             Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
         }
     }
+}
+
+/// The main-binary name inside Foo.app/Contents/MacOS/ for a canonical
+/// Windows-style target. Unknown names fall back to the bare stem, which
+/// matches the many apps whose binary simply shares their name (Discord,
+/// Spotify, Telegram, WhatsApp…) — matching is case-insensitive anyway.
+#[cfg(all(desktop, target_os = "macos"))]
+fn mac_binary_name(target: &str) -> String {
+    let stem = target.trim().trim_end_matches('*');
+    let stem = stem
+        .strip_suffix(".exe")
+        .or_else(|| stem.strip_suffix(".EXE"))
+        .unwrap_or(stem);
+    match stem.to_ascii_lowercase().as_str() {
+        "chrome" => "Google Chrome".into(),
+        "msedge" => "Microsoft Edge".into(),
+        "brave" => "Brave Browser".into(),
+        "safari" => "Safari".into(),
+        "firefox" => "firefox".into(),
+        "opera" => "Opera".into(),
+        "vivaldi" => "Vivaldi".into(),
+        "steam" => "steam_osx".into(),
+        "epicgameslauncher" => "EpicGamesLauncher".into(),
+        _ => stem.to_string(),
+    }
+}
+
+/// What `open -a` should get for a bare app-name target ("chrome", "code").
+#[cfg(all(desktop, target_os = "macos"))]
+fn mac_app_name(target: &str) -> String {
+    let stem = target.trim();
+    let stem = stem
+        .strip_suffix(".exe")
+        .or_else(|| stem.strip_suffix(".EXE"))
+        .unwrap_or(stem);
+    match stem.to_ascii_lowercase().as_str() {
+        "chrome" => "Google Chrome".into(),
+        "msedge" => "Microsoft Edge".into(),
+        "brave" => "Brave Browser".into(),
+        "code" => "Visual Studio Code".into(),
+        "notepad" => "TextEdit".into(),
+        "steam" => "Steam".into(),
+        _ => stem.to_string(),
+    }
+}
+
+/// pkill's pattern is a regex; app names must match literally.
+#[cfg(all(desktop, target_os = "macos"))]
+fn regex_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        if r"\^$.|?*+()[]{}".contains(c) {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out
 }

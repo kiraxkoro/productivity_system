@@ -1,0 +1,39 @@
+# Proves the blocking engine on a real macOS machine: unit tests, then a live
+# round-trip that writes /etc/hosts, confirms the OS resolver actually returns
+# 0.0.0.0 for a blocked domain, kills a real Google Chrome addressed by its
+# Windows name, and restores everything afterwards.
+name: mac-blocking-check
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "src-tauri/src/hosts_blocker.rs"
+      - "src-tauri/src/commands/schedules.rs"
+      - "src-tauri/src/commands/system.rs"
+      - "src-tauri/tests/**"
+      - ".github/workflows/mac-check.yml"
+
+jobs:
+  mac-blocking:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Build frontend (the Rust build embeds ../dist)
+        run: |
+          npm ci
+          npm run build
+
+      - name: Unit tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Grant hosts-file access (what the app's one-time admin prompt does)
+        run: sudo /bin/chmod +a "user:$(whoami) allow read,write" /etc/hosts
+
+      - name: Live blocking round-trip
+        run: cargo test --manifest-path src-tauri/Cargo.toml --test mac_blocking -- --ignored --nocapture

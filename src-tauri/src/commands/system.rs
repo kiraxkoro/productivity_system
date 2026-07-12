@@ -7,13 +7,17 @@ use tauri::State;
 pub const ALLOWED_BROWSER_KEY: &str = "allowed_browser";
 pub const PAUSE_UNTIL_KEY: &str = "pause_until_epoch";
 pub const COMMIT_PW_KEY: &str = "commitment_password";
-pub const KNOWN_BROWSERS: [&str; 6] = [
+// The .exe names are the app's canonical browser IDs on every OS — the DB,
+// presets and settings all store these; macOS translates them to real app
+// names at the kill/launch boundary (commands::schedules).
+pub const KNOWN_BROWSERS: [&str; 7] = [
     "chrome.exe",
     "msedge.exe",
     "brave.exe",
     "firefox.exe",
     "opera.exe",
     "vivaldi.exe",
+    "safari.exe",
 ];
 
 #[derive(Clone, serde::Serialize)]
@@ -22,10 +26,10 @@ pub struct BrowserInfo {
     pub exe: String,
 }
 
-/// Browsers actually installed on this machine, scanned once from the
-/// registry's official browser registrations (StartMenuInternet). Any browser
-/// registers itself there, so Opera/Vivaldi/whatever show up without us
-/// hardcoding them. Falls back to KNOWN_BROWSERS when the scan finds nothing.
+/// Browsers actually installed on this machine, scanned once. Windows reads
+/// the registry's official browser registrations (StartMenuInternet), where
+/// any browser registers itself; macOS checks the well-known .app bundles.
+/// Falls back to KNOWN_BROWSERS when the scan finds nothing.
 pub fn installed_browsers() -> &'static Vec<BrowserInfo> {
     static CACHE: std::sync::OnceLock<Vec<BrowserInfo>> = std::sync::OnceLock::new();
     CACHE.get_or_init(scan_browsers)
@@ -76,6 +80,29 @@ fn scan_browsers() -> Vec<BrowserInfo> {
                 key.rsplit('\\').next().unwrap_or("Browser").to_string()
             });
             found.push(BrowserInfo { name, exe });
+        }
+    }
+    // macOS has no browser registry; checking the well-known .app bundles
+    // covers everything our lockout can act on anyway.
+    #[cfg(target_os = "macos")]
+    {
+        let candidates: [(&str, &str, &str); 7] = [
+            ("Safari", "safari.exe", "Safari.app"),
+            ("Google Chrome", "chrome.exe", "Google Chrome.app"),
+            ("Microsoft Edge", "msedge.exe", "Microsoft Edge.app"),
+            ("Brave", "brave.exe", "Brave Browser.app"),
+            ("Firefox", "firefox.exe", "Firefox.app"),
+            ("Opera", "opera.exe", "Opera.app"),
+            ("Vivaldi", "vivaldi.exe", "Vivaldi.app"),
+        ];
+        let home = std::env::var("HOME").unwrap_or_default();
+        for (name, exe, app) in candidates {
+            let in_system = std::path::Path::new("/Applications").join(app).exists();
+            let in_home = !home.is_empty()
+                && std::path::Path::new(&home).join("Applications").join(app).exists();
+            if in_system || in_home {
+                found.push(BrowserInfo { name: name.to_string(), exe: exe.to_string() });
+            }
         }
     }
     if found.is_empty() {
@@ -247,7 +274,9 @@ pub fn allowed_browser(conn: &rusqlite::Connection) -> String {
     detected
 }
 
-/// Reads the Windows default-browser ProgId from the registry (no extra deps).
+/// Best guess at the user's browser: the Windows registry knows for sure;
+/// macOS has no cheap equivalent, so Chrome-if-installed (our audience's
+/// usual browser), Safari otherwise — Settings can always override it.
 fn detect_default_browser() -> Option<String> {
     #[cfg(target_os = "windows")]
     {
@@ -277,7 +306,15 @@ fn detect_default_browser() -> Option<String> {
         };
         Some(exe.to_string())
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        if std::path::Path::new("/Applications/Google Chrome.app").exists() {
+            Some("chrome.exe".to_string())
+        } else {
+            Some("safari.exe".to_string())
+        }
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
         None
     }
