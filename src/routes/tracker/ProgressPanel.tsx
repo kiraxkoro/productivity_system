@@ -69,56 +69,65 @@ export default function ProgressPanel() {
         </div>
       )}
 
-      <div className="level-card card">
-        <Ring pct={(into / needed) * 100} size={148} stroke={12}>
-          <span className="level-label">LEVEL</span>
-          <span className="level-number">{level}</span>
-          <span className="level-rank">{rank}</span>
-        </Ring>
-        <div className="level-info">
-          <h3>
-            {rank} · {xp} XP total{" "}
-            <span className="muted">
-              · every task or habit ticked = +10, unticked = −10
-            </span>
-          </h3>
-          <p className="muted">
-            {into} / {needed} XP this level — {needed - into} more to level{" "}
-            {level + 1}. Each level costs 50 XP more than the last; every 10
-            levels is a new rank.
-          </p>
+      <div className="prog-grid">
+        <div className="prog-main">
+          <div className="level-card card level-hero">
+            <Ring pct={(into / needed) * 100} size={210} stroke={14}>
+              <span className="level-rank">{rank}</span>
+              <span className="level-number">Level {level}</span>
+              <span className="level-xp muted">{xp} XP</span>
+            </Ring>
+            <h3 className="level-headline">
+              {rank} · {xp} XP total
+            </h3>
+            <p className="muted level-sub">
+              Every task or habit ticked = +10, unticked = −10
+            </p>
+            <p className="muted level-sub">
+              {into} / {needed} XP this level — {needed - into} more to level{" "}
+              {level + 1}. Each level costs 50 XP more than the last; every 10
+              levels is a new rank.
+            </p>
+          </div>
+
+          <section className="card">
+            <h3>
+              🏆 Badges{" "}
+              <span className="muted">
+                {unlocked.length} of {ACHIEVEMENTS.length} earned
+              </span>
+            </h3>
+            <ul className="badge-grid">
+              {ACHIEVEMENTS.map((a) => {
+                const got = unlockedById.get(a.id);
+                return (
+                  <li
+                    key={a.id}
+                    className={`badge-item ${got ? "unlocked" : "locked"}`}
+                    title={got ? `Unlocked ${got.unlockedAt}` : a.desc}
+                  >
+                    <span className="badge-medal">
+                      <span className="badge-emoji">{a.emoji}</span>
+                    </span>
+                    <span className="badge-name">{a.title}</span>
+                    {got ? (
+                      <span className="badge-earned">
+                        earned {got.unlockedAt}
+                      </span>
+                    ) : (
+                      <span className="badge-desc muted">{a.desc}</span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
         </div>
+
+        <aside className="prog-rail">
+          <RankLadder level={level} />
+        </aside>
       </div>
-
-      <RankLadder level={level} />
-
-      <section className="card">
-        <h3>
-          🏆 Badges{" "}
-          <span className="muted">
-            {unlocked.length} of {ACHIEVEMENTS.length} earned
-          </span>
-        </h3>
-        <ul className="badge-grid">
-          {ACHIEVEMENTS.map((a) => {
-            const got = unlockedById.get(a.id);
-            return (
-              <li
-                key={a.id}
-                className={`badge-item ${got ? "unlocked" : "locked"}`}
-                title={got ? `Unlocked ${got.unlockedAt}` : a.desc}
-              >
-                <span className="badge-medal">
-                  <span className="badge-emoji">{got ? a.emoji : "🔒"}</span>
-                </span>
-                <span className="badge-ribbon">{a.title}</span>
-                <span className="badge-desc muted">{a.desc}</span>
-                {got && <span className="badge-date">earned {got.unlockedAt}</span>}
-              </li>
-            );
-          })}
-        </ul>
-      </section>
     </>
   );
 }

@@ -693,3 +693,279 @@
     padding: 8px;
   }
 }
+
+/* ================= redesign v2: focus timer hero + daily planner ========= */
+
+.sched-grid2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .sched-grid2 {
+    grid-template-columns: 1fr;
+  }
+}
+.sched-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* ---- the gradient timer hero ---- */
+.focus-card {
+  padding: 16px;
+}
+.focus-hero {
+  position: relative;
+  border-radius: 16px;
+  padding: 16px 18px 22px;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(255, 255, 255, 0.16), transparent 55%),
+    linear-gradient(165deg, #8b5cf6 0%, #7c3aed 45%, #5b21b6 100%);
+  box-shadow: 0 10px 34px rgba(124, 58, 237, 0.45);
+  color: #fff;
+}
+.focus-hero-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.focus-hero-top h3 {
+  margin: 0;
+  color: #fff;
+}
+.hero-gear {
+  background: rgba(255, 255, 255, 0.14);
+  border: none;
+  border-radius: 10px;
+  padding: 6px 9px;
+  box-shadow: none;
+}
+.hero-gear:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+.hero-eyebrow {
+  margin-top: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #d8ffe9;
+}
+.hero-ring {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+}
+/* the ring lives on a saturated surface: white marks, soft white track */
+.focus-hero .ring-track {
+  stroke: rgba(255, 255, 255, 0.24);
+}
+.focus-hero .ring-fill {
+  stroke: #fff;
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.75));
+}
+.hero-clock {
+  font-size: 2.05rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.hero-range {
+  font-size: 0.78rem;
+  opacity: 0.85;
+}
+.hero-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+.hero-btn {
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #fff;
+  border-radius: 999px;
+  padding: 7px 18px;
+  font-weight: 700;
+  box-shadow: none;
+}
+.hero-btn:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+/* duration chips + lockdown row under the hero */
+.hero-chips {
+  display: flex;
+  gap: 12px;
+  margin-top: 14px;
+}
+.hero-chips .chip.big {
+  flex: 1;
+  padding: 12px 0;
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--accent-grad);
+  border: none;
+  border-radius: 14px;
+  box-shadow: 0 4px 18px rgba(139, 92, 246, 0.4);
+}
+.hero-chips .chip.big:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(139, 92, 246, 0.55);
+}
+.hero-next {
+  margin: 12px 2px 0;
+  font-size: 0.9rem;
+}
+.hero-lockdown {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 12px;
+  font-size: 0.93rem;
+}
+
+/* ---- template cards with Start ---- */
+.tpl-card {
+  position: relative;
+  cursor: pointer;
+}
+.tpl-start {
+  margin-top: 10px;
+  width: 100%;
+  padding: 7px 0;
+  border-radius: 12px;
+  font-size: 0.9rem;
+}
+
+/* ---- daily planner timeline ---- */
+.planner-date {
+  margin: -4px 0 12px;
+  font-weight: 700;
+  font-size: 1.02rem;
+}
+.tl {
+  position: relative;
+  margin-left: 4px;
+}
+.tl-hour {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+.tl-hour-label {
+  width: 46px;
+  flex-shrink: 0;
+  font-size: 0.74rem;
+  color: var(--muted);
+  transform: translateY(-0.5em);
+}
+.tl-hour-line {
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.07);
+}
+.tl-block,
+.tl-break {
+  position: absolute;
+  left: 58px;
+  right: 4px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.tl-block {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 8px 12px;
+  background:
+    radial-gradient(120% 100% at 50% 0%, rgba(255, 255, 255, 0.14), transparent 60%),
+    linear-gradient(165deg, #8b5cf6, #6d28d9);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.35);
+  transition: transform 0.12s, box-shadow 0.2s;
+}
+.tl-block:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 22px rgba(124, 58, 237, 0.5);
+}
+.tl-block.live {
+  outline: 2px solid #d8ffe9;
+  outline-offset: -2px;
+}
+.tl-block.off {
+  background: var(--panel-2);
+  color: var(--muted);
+  box-shadow: none;
+  border: 1px dashed var(--border);
+}
+.tl-block.slim {
+  padding: 4px 12px;
+}
+.tl-block-main {
+  min-width: 0;
+}
+.tl-block-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 0.92rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tl-block-time {
+  display: block;
+  font-size: 0.76rem;
+  opacity: 0.85;
+}
+.tl-block.slim .tl-block-time {
+  display: inline;
+  margin-left: 8px;
+}
+.tl-block-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.tl-block:hover .tl-block-actions {
+  opacity: 1;
+}
+.tl-icon {
+  background: rgba(0, 0, 0, 0.22);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 0.78rem;
+  padding: 3px 7px;
+  box-shadow: none;
+}
+.tl-icon:hover {
+  background: rgba(0, 0, 0, 0.42);
+}
+.tl-block.off .tl-icon {
+  background: var(--panel);
+  color: var(--muted);
+}
+.tl-break {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  pointer-events: none;
+}

@@ -2,10 +2,11 @@
 // one-click Focus Now, prefilled templates, and a schedule that runs itself
 // (the Rust loop opens/closes apps — you just show up).
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { ScheduleBlock } from "../../shared/types";
 import BlockForm from "./BlockForm";
+import Ring from "../tracker/Ring";
 import {
   activeBlockOf,
   addMinutes,
@@ -74,6 +75,9 @@ export default function ScheduleList() {
     BROWSERS.map((b) => ({ name: b.label, exe: b.process })),
   );
   const [, setTick] = useState(0); // 1s heartbeat so countdowns stay live
+  // last quick-focus duration — the idle timer face shows it (mock: 00:25:00)
+  const [lastMinutes, setLastMinutes] = useState(25);
+  const settingsRef = useRef<HTMLElement>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -318,6 +322,36 @@ export default function ScheduleList() {
     }
   }
 
+  /** Template "Start" button: begin the block right now, no form. */
+  async function startTemplate(t: Template) {
+    const start = nowHHMM();
+    const end = addMinutes(start, t.durationMin);
+    const block: ScheduleBlock = {
+      id: crypto.randomUUID(),
+      label: t.label,
+      startTime: start,
+      endTime: end,
+      daysOfWeek: [new Date().getDay()],
+      actions: isMobilePlatform ? [] : t.actions.map((a) => ({ ...a })),
+      enabled: true,
+      oneOffDate: todayISO(),
+    };
+    try {
+      await createBlock(block);
+      setBlocks((prev) => [...prev, block]);
+      for (const a of block.actions) {
+        if (a.type === "closeApp") void closeApp(a.target).catch(() => {});
+      }
+      setFlash(
+        `🔒 ${t.label} started — ${humanDuration(t.durationMin)}, ends at ${fmtTime(end)}.`,
+      );
+      setTimeout(() => setFlash(""), 6000);
+      await refresh();
+    } catch (e) {
+      setLoadError(String(e));
+    }
+  }
+
   return (
     <div className="sched">
       {loadError && (
@@ -329,13 +363,6 @@ export default function ScheduleList() {
 
       {flash && <div className="banner ok">{flash}</div>}
 
-      <NowBanner
-        active={active}
-        next={next}
-        onStop={(b) => setConfess({ kind: "stop", block: b })}
-        onEmergency={() => setConfess({ kind: "pause" })}
-      />
-
       {confess && (
         <ConfessionModal
           actionLabel={CONFESS_LABELS[confess.kind]}
@@ -345,51 +372,56 @@ export default function ScheduleList() {
         />
       )}
 
-      <div className="sched-grid">
-      <aside className="sched-rail">
-      <section className="card">
-        <h3>
-          ⚡ Focus now{" "}
-          <span className="muted">zero setup — one click and you're in</span>
-        </h3>
-        <div className="focus-row">
-          {FOCUS_DURATIONS.map((m) => (
-            <button key={m} className="chip big" onClick={() => void focusNow(m)}>
-              {m} min
-            </button>
-          ))}
-          {isMobilePlatform ? (
-            <p className="muted small">
-              📱 On mobile, blocks run as timers with notifications —
-              closing apps &amp; blocking sites needs the desktop app.
-            </p>
-          ) : (
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={killDistractions}
-                onChange={(e) => setKillDistractions(e.currentTarget.checked)}
-              />
-              lockdown — distracting apps closed & kept closed, sites blocked
-            </label>
-          )}
-        </div>
-      </section>
+      <div className="sched-grid2">
+      <div className="sched-col">
+      <FocusTimerCard
+        active={active}
+        next={next}
+        idleMinutes={lastMinutes}
+        onPick={(m) => {
+          setLastMinutes(m);
+          void focusNow(m);
+        }}
+        killDistractions={killDistractions}
+        onKillChange={setKillDistractions}
+        onStop={(b) => setConfess({ kind: "stop", block: b })}
+        onEmergency={() => setConfess({ kind: "pause" })}
+        onGear={() =>
+          settingsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+        }
+      />
 
       <section className="card">
         <h3>
           📦 Templates{" "}
-          <span className="muted">prefilled — just hit save</span>
+          <span className="muted">start instantly, or click a card to tweak</span>
         </h3>
         <div className="tpl-grid">
           {TEMPLATES.map((t) => (
-            <button key={t.label} className="tpl" onClick={() => openNewForm(t)}>
+            <div
+              key={t.label}
+              className="tpl tpl-card"
+              role="button"
+              tabIndex={0}
+              onClick={() => openNewForm(t)}
+              onKeyDown={(e) => e.key === "Enter" && openNewForm(t)}
+            >
               <span className="tpl-emoji">{t.emoji}</span>
               <span className="tpl-label">{t.label}</span>
               <span className="tpl-hint">
                 {humanDuration(t.durationMin)} · {t.hint}
               </span>
-            </button>
+              <button
+                className="primary tpl-start"
+                title={`Start ${t.label} right now for ${humanDuration(t.durationMin)}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void startTemplate(t);
+                }}
+              >
+                Start
+              </button>
+            </div>
           ))}
           <button className="tpl custom" onClick={() => openNewForm()}>
             <span className="tpl-emoji">＋</span>
@@ -398,12 +430,12 @@ export default function ScheduleList() {
           </button>
         </div>
       </section>
-      </aside>
+      </div>
 
-      <div className="sched-main">
-      <section className="card">
+      <div className="sched-col">
+      <section className="card planner">
         <h3>
-          📅 Today
+          🗓 Daily Planner
           <label className="plan-day">
             <span className="muted small">plan another day →</span>
             <input
@@ -418,22 +450,25 @@ export default function ScheduleList() {
             />
           </label>
         </h3>
+        <p className="planner-date">
+          Today,{" "}
+          {new Date().toLocaleDateString("en", {
+            month: "long",
+            day: "numeric",
+            year: "numeric",
+          })}
+        </p>
         {todayBlocks.length === 0 ? (
           <p className="muted">
-            Nothing planned today. Hit a template above — future you says thanks.
+            Nothing planned today. Hit a template — future you says thanks.
           </p>
         ) : (
-          <ul className="block-list">
-            {todayBlocks.map((b) => (
-              <BlockRow
-                key={b.id}
-                block={b}
-                onEdit={handleEdit}
-                onToggle={handleToggle}
-                onDelete={handleDelete}
-              />
-            ))}
-          </ul>
+          <Timeline
+            blocks={todayBlocks}
+            onEdit={handleEdit}
+            onToggle={handleToggle}
+            onDelete={handleDelete}
+          />
         )}
       </section>
 
@@ -453,12 +488,11 @@ export default function ScheduleList() {
           </ul>
         </section>
       )}
-
       </div>
       </div>
 
       {autostart !== null && !isMobilePlatform && (
-        <section className="card">
+        <section className="card" ref={settingsRef}>
           <h3>
             ⚙️ Runs by itself{" "}
             <span className="muted">so day-2 laziness can't win</span>
@@ -629,72 +663,245 @@ function ConfessionModal({
   );
 }
 
-function NowBanner({
+/** The Focus Timer hero — everything the old NowBanner + "Focus now" card did,
+ *  in one place: live countdown ring, stop/pause (confessed), 5-min emergency
+ *  pause, next-up line, one-click quick focus, and the lockdown toggle. */
+function FocusTimerCard({
   active,
   next,
+  idleMinutes,
+  onPick,
+  killDistractions,
+  onKillChange,
   onStop,
   onEmergency,
+  onGear,
 }: {
   active: ScheduleBlock | null;
   next: ScheduleBlock | null;
+  idleMinutes: number;
+  onPick: (minutes: number) => void;
+  killDistractions: boolean;
+  onKillChange: (on: boolean) => void;
   onStop: (b: ScheduleBlock) => void;
   onEmergency: () => void;
+  onGear: () => void;
 }) {
+  let pct = 100;
+  let clock = `${pad(Math.floor(idleMinutes / 60))}:${pad(idleMinutes % 60)}:00`;
   if (active) {
     const now = new Date();
     const nowSec =
       now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
     const startSec = toMinutes(active.startTime) * 60;
     const endSec = toMinutes(active.endTime) * 60;
-    const raw = ((nowSec - startSec) / (endSec - startSec)) * 100;
-    const pct = Math.min(100, Math.max(0, raw));
     const rem = Math.max(0, endSec - nowSec);
-    const timer =
-      rem >= 3600
-        ? `${Math.floor(rem / 3600)}:${pad(Math.floor((rem % 3600) / 60))}:${pad(rem % 60)}`
-        : `${Math.floor(rem / 60)}:${pad(rem % 60)}`;
-    return (
-      <div className="now-card active">
-        <div className="now-main">
-          <div className="now-eyebrow">● focus mode</div>
-          <h2>{active.label}</h2>
-          <div className="now-timer">{timer}</div>
-          <div className="now-sub">
-            {fmtTime(active.startTime)} – {fmtTime(active.endTime)}
-          </div>
-          <div className="progress">
-            <div className="progress-fill" style={{ width: `${pct}%` }} />
-          </div>
-        </div>
-        <div className="now-buttons">
-          <button
-            className="ghost"
-            title="5-minute emergency pause — you'll have to type the weakness phrase"
-            onClick={onEmergency}
-          >
-            🆘 5 min
-          </button>
-          <button className="ghost" onClick={() => onStop(active)}>
-            {active.oneOffDate ? "Stop" : "Pause"}
-          </button>
-        </div>
-      </div>
-    );
+    pct = Math.min(100, Math.max(0, (rem / (endSec - startSec)) * 100));
+    clock = `${pad(Math.floor(rem / 3600))}:${pad(Math.floor((rem % 3600) / 60))}:${pad(rem % 60)}`;
   }
-  if (next) {
-    const minsUntil = toMinutes(next.startTime) - toMinutes(nowHHMM());
-    return (
-      <div className="now-card idle">
-        <span>
-          😌 Free time. Next up: <b>{next.label}</b> at {fmtTime(next.startTime)}{" "}
-          (in {humanDuration(minsUntil)})
-        </span>
-      </div>
-    );
-  }
+
   return (
-    <div className="now-card idle">
-      <span>😴 Nothing scheduled. Start a quick focus below 👇</span>
+    <section className="card focus-card">
+      <div className="focus-hero">
+        <div className="focus-hero-top">
+          <h3>⏱ Focus Timer</h3>
+          {!isMobilePlatform && (
+            <button
+              className="hero-gear"
+              title="Scheduler settings (autostart, commitment password, browser)"
+              onClick={onGear}
+            >
+              ⚙️
+            </button>
+          )}
+        </div>
+        {active && (
+          <div className="hero-eyebrow">● focus mode — {active.label}</div>
+        )}
+        <div className="hero-ring">
+          <Ring pct={pct} size={190} stroke={11}>
+            <span className="hero-clock">{clock}</span>
+            {active && (
+              <span className="hero-range">
+                {fmtTime(active.startTime)} – {fmtTime(active.endTime)}
+              </span>
+            )}
+          </Ring>
+        </div>
+        {active && (
+          <div className="hero-actions">
+            <button
+              className="hero-btn"
+              title="5-minute emergency pause — you'll have to type the weakness phrase"
+              onClick={onEmergency}
+            >
+              🆘 5 min
+            </button>
+            <button className="hero-btn" onClick={() => onStop(active)}>
+              {active.oneOffDate ? "Stop" : "Pause"}
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="hero-chips">
+        {FOCUS_DURATIONS.map((m) => (
+          <button key={m} className="chip big" onClick={() => onPick(m)}>
+            {m} min
+          </button>
+        ))}
+      </div>
+      {!active && (
+        <p className="hero-next muted">
+          {next ? (
+            <>
+              😌 Next up: <b>{next.label}</b> at {fmtTime(next.startTime)} (in{" "}
+              {humanDuration(toMinutes(next.startTime) - toMinutes(nowHHMM()))})
+            </>
+          ) : (
+            <>😴 Nothing scheduled — one click above and you're in.</>
+          )}
+        </p>
+      )}
+
+      {isMobilePlatform ? (
+        <p className="muted small">
+          📱 On mobile, blocks run as timers with notifications — closing apps
+          &amp; blocking sites needs the desktop app.
+        </p>
+      ) : (
+        <div className="hero-lockdown">
+          <label className="switch" title="Lockdown for quick-focus sessions">
+            <input
+              type="checkbox"
+              checked={killDistractions}
+              onChange={(e) => onKillChange(e.currentTarget.checked)}
+            />
+            <span className="slider" />
+          </label>
+          <span>Lockdown — distracting apps closed &amp; sites blocked</span>
+        </div>
+      )}
+    </section>
+  );
+}
+
+const fmtHour = (h: number) =>
+  `${h % 12 === 0 ? 12 : h % 12} ${h < 12 ? "AM" : "PM"}`;
+
+/** Today's blocks laid out on a real timeline: hour gutter, proportional
+ *  purple blocks, gray "Break" fillers in the gaps. Every BlockRow control
+ *  survives — click to edit, plus pause/resume, edit, and delete buttons. */
+function Timeline({
+  blocks,
+  onEdit,
+  onToggle,
+  onDelete,
+}: {
+  blocks: ScheduleBlock[];
+  onEdit: (b: ScheduleBlock) => void;
+  onToggle: (b: ScheduleBlock) => void;
+  onDelete: (b: ScheduleBlock) => void;
+}) {
+  const PX = 76; // pixels per hour
+  const sorted = [...blocks].sort((a, b) =>
+    a.startTime.localeCompare(b.startTime),
+  );
+  const startHour = Math.floor(
+    Math.min(...sorted.map((b) => toMinutes(b.startTime))) / 60,
+  );
+  const endHour = Math.ceil(
+    Math.max(...sorted.map((b) => toMinutes(b.endTime))) / 60,
+  );
+  const span = Math.max(endHour - startHour, 1);
+  const y = (hhmm: string) => ((toMinutes(hhmm) - startHour * 60) / 60) * PX;
+
+  // gaps ≥ 10 min between consecutive enabled blocks render as "Break"
+  const enabled = sorted.filter((b) => b.enabled);
+  const breaks: { start: string; end: string }[] = [];
+  for (let i = 0; i + 1 < enabled.length; i++) {
+    const gapStart = enabled[i].endTime;
+    const gapEnd = enabled[i + 1].startTime;
+    if (toMinutes(gapEnd) - toMinutes(gapStart) >= 10) {
+      breaks.push({ start: gapStart, end: gapEnd });
+    }
+  }
+
+  const hours = Array.from({ length: span + 1 }, (_, i) => startHour + i);
+
+  return (
+    <div className="tl" style={{ height: span * PX + 18 }}>
+      {hours.map((h) => (
+        <div key={h} className="tl-hour" style={{ top: (h - startHour) * PX }}>
+          <span className="tl-hour-label">{fmtHour(h)}</span>
+          <span className="tl-hour-line" />
+        </div>
+      ))}
+      {breaks.map((g) => (
+        <div
+          key={g.start}
+          className="tl-break"
+          style={{
+            top: y(g.start) + 2,
+            height: Math.max(y(g.end) - y(g.start) - 4, 20),
+          }}
+        >
+          Break · {fmtTime(g.start)} – {fmtTime(g.end)}
+        </div>
+      ))}
+      {sorted.map((b) => {
+        const h = Math.max(y(b.endTime) - y(b.startTime) - 4, 30);
+        return (
+          <div
+            key={b.id}
+            className={`tl-block ${b.enabled ? "" : "off"} ${
+              isActiveNow(b) ? "live" : ""
+            } ${h < 52 ? "slim" : ""}`}
+            style={{ top: y(b.startTime) + 2, height: h }}
+            title={`${describeDays(b)}${
+              b.actions.length
+                ? ` · ${b.actions.length} auto-action${b.actions.length > 1 ? "s" : ""}`
+                : ""
+            } — click to edit`}
+            role="button"
+            tabIndex={0}
+            onClick={() => onEdit(b)}
+            onKeyDown={(e) => e.key === "Enter" && onEdit(b)}
+          >
+            <div className="tl-block-main">
+              <span className="tl-block-label">
+                {b.label}
+                {!b.enabled && <span className="pill paused">paused</span>}
+              </span>
+              <span className="tl-block-time">
+                {fmtTime(b.startTime)} – {fmtTime(b.endTime)}
+              </span>
+            </div>
+            <div
+              className="tl-block-actions"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                className="tl-icon"
+                title={b.enabled ? "Pause" : "Resume"}
+                onClick={() => onToggle(b)}
+              >
+                {b.enabled ? "⏸" : "▶"}
+              </button>
+              <button className="tl-icon" title="Edit" onClick={() => onEdit(b)}>
+                ✎
+              </button>
+              <button
+                className="tl-icon"
+                title="Delete"
+                onClick={() => onDelete(b)}
+              >
+                🗑
+              </button>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
