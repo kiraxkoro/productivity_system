@@ -203,9 +203,15 @@ pub fn close_process(name: &str) -> Result<(), String> {
     {
         // Stored targets stay canonical Windows names ("chrome.exe",
         // "WhatsApp*") so blocks keep working when data syncs across
-        // machines; here they're translated to the Mac binary. Killing an
-        // app's main process takes its helper processes down with it.
-        let pattern = format!("MacOS/{}$", regex_escape(&mac_binary_name(name)));
+        // machines; here they're translated to the Mac binary. The pattern
+        // must tolerate arguments after the binary path (a browser opened
+        // with a URL ends its command line with that URL, not its own name),
+        // so it matches the name followed by a space or end-of-line — which
+        // also sweeps up "Foo Helper" children.
+        let pattern = format!(
+            "MacOS/{}([[:space:]]|$)",
+            regex_escape(&mac_binary_name(name))
+        );
         let out = std::process::Command::new("pkill")
             .args(["-i", "-f", &pattern])
             .output()

@@ -71,11 +71,15 @@ fn close_process_translates_windows_names_to_mac_apps() {
         eprintln!("Google Chrome not installed on this machine — nothing to test");
         return;
     }
-    let opened = Command::new("open")
-        .args(["-a", "Google Chrome", "--args", "--no-first-run"])
-        .status()
-        .expect("open should run");
-    assert!(opened.success(), "Chrome should launch");
+    // spawn the binary directly: `open -a` goes through LaunchServices,
+    // which can wait forever on a first-run browser in CI
+    Command::new("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+        .args(["--no-first-run", "--no-default-browser-check", "about:blank"])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("Chrome should spawn");
     assert!(wait_for(chrome_running, 20), "Chrome should appear in the process list");
 
     // the exact string a block stores on Windows
@@ -88,8 +92,10 @@ fn close_process_translates_windows_names_to_mac_apps() {
 }
 
 fn chrome_running() -> bool {
+    // same arg-tolerant shape close_process uses: Chrome launched with
+    // flags/URLs doesn't end its command line with its own binary name
     Command::new("pgrep")
-        .args(["-f", "MacOS/Google Chrome$"])
+        .args(["-f", "MacOS/Google Chrome([[:space:]]|$)"])
         .status()
         .map(|s| s.success())
         .unwrap_or(false)
