@@ -97,8 +97,12 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
+      # gen/android/app/build.gradle.kts pins compileSdk/targetSdk = 36 (set
+      # by `tauri android init`); build-tools 35.0.0 is what AGP resolves for
+      # that compileSdk. Locally Gradle auto-downloaded both on demand — CI
+      # has no such fallback, so they must be installed explicitly up front.
       - name: Install NDK + platform
-        run: sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;${NDK_VERSION}"
+        run: sdkmanager --install "platform-tools" "platforms;android-36" "build-tools;35.0.0" "ndk;${NDK_VERSION}"
 
       - name: Set up Rust with Android targets
         uses: dtolnay/rust-toolchain@stable
