@@ -17,6 +17,8 @@ on:
 jobs:
   mac-blocking:
     runs-on: macos-latest
+    # a cold-cache compile is ~45 min; anything past that is a hang, not work
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
 
@@ -36,4 +38,7 @@ jobs:
         run: sudo /bin/chmod +a "user:$(whoami) allow read,write" /etc/hosts
 
       - name: Live blocking round-trip
-        run: cargo test --manifest-path src-tauri/Cargo.toml --test mac_blocking -- --ignored --nocapture
+        # every wait inside is bounded at 20s; if this doesn't finish in
+        # minutes, something external hung — fail instead of burning minutes
+        timeout-minutes: 10
+        run: cargo test --manifest-path src-tauri/Cargo.toml --test mac_blocking -- --ignored --nocapture --test-threads=1
