@@ -314,7 +314,7 @@ fn run_actions(block: &ScheduleBlock, trigger: &str, allowed: &str) {
         let _ = close_process(allowed);
     }
     for action in &closes {
-        run_action(action);
+        run_action(action, allowed);
     }
     // Lockdown blocks also shut the non-chosen browsers at start, so switching
     // browsers isn't an escape hatch.
@@ -327,27 +327,34 @@ fn run_actions(block: &ScheduleBlock, trigger: &str, allowed: &str) {
         std::thread::sleep(Duration::from_millis(1500));
     }
     for action in &opens {
-        run_action(action);
+        run_action(action, allowed);
     }
 }
 
-fn run_action(action: &BlockAction) {
+fn run_action(action: &BlockAction, allowed_browser: &str) {
     // On mobile, closeApp targets are Android package names enforced natively
     // (AppBlockerService, driven from the WebView) — Rust can't open or close
     // anything there, so actions are pure markers.
     #[cfg(mobile)]
     {
-        let _ = action;
+        let _ = (action, allowed_browser);
         return;
     }
     #[cfg(desktop)]
-    run_action_desktop(action);
+    run_action_desktop(action, allowed_browser);
 }
 
 #[cfg(desktop)]
-fn run_action_desktop(action: &BlockAction) {
+fn run_action_desktop(action: &BlockAction, allowed_browser: &str) {
     let result = match action.r#type.as_str() {
-        "openApp" | "openTab" => open_target(action.target.trim()),
+        "openApp" => open_target(action.target.trim()),
+        // websites must open in the CHOSEN browser, not the system default:
+        // the lockout kills every other browser, so a tab opened via the
+        // default handler would die within a tick when the two differ
+        "openTab" => crate::commands::schedules::open_url_in_browser(
+            action.target.trim(),
+            allowed_browser,
+        ),
         "closeApp" => close_process(action.target.trim()),
         "closeTab" => {
             // handled elsewhere for the whole block: the hosts file blocks the
