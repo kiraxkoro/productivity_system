@@ -154,6 +154,54 @@ pub fn open_target(target: &str) -> Result<(), String> {
     }
 }
 
+/// Opens a URL in the block's chosen browser instead of the system default.
+/// The two often differ (chosen browser Edge, Windows default Chrome) — and
+/// since the lockout kills every non-chosen browser, opening a tab via the
+/// default handler hands the user a window that dies 15 seconds later.
+/// Falls back to the default browser when the chosen one can't launch.
+#[cfg(desktop)]
+pub fn open_url_in_browser(url: &str, browser_exe: &str) -> Result<(), String> {
+    let url = url.trim();
+    let browser = browser_exe.trim();
+    if url.is_empty() {
+        return Err("empty target".into());
+    }
+    if browser.is_empty() {
+        return open_target(url);
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        // same quoting rules as open_target; the browser exe resolves through
+        // the registry's App Paths (chrome.exe, msedge.exe, …)
+        let sanitized = url.replace('"', "");
+        let out = std::process::Command::new("cmd")
+            .arg("/C")
+            .raw_arg(format!("start \"\" \"{browser}\" \"{sanitized}\""))
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+        if matches!(&out, Ok(o) if o.status.success()) {
+            return Ok(());
+        }
+        open_target(url)
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let out = std::process::Command::new("open")
+            .args(["-a", &mac_app_name(browser), url])
+            .output();
+        if matches!(&out, Ok(o) if o.status.success()) {
+            return Ok(());
+        }
+        open_target(url)
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        open_target(url)
+    }
+}
+
 /// Kills a process by image name; "Discord" and "Discord.exe" both work.
 /// A process that isn't running counts as success (it's already "closed").
 pub fn close_process(name: &str) -> Result<(), String> {
@@ -275,6 +323,10 @@ fn mac_app_name(target: &str) -> String {
         "chrome" => "Google Chrome".into(),
         "msedge" => "Microsoft Edge".into(),
         "brave" => "Brave Browser".into(),
+        "safari" => "Safari".into(),
+        "firefox" => "Firefox".into(),
+        "opera" => "Opera".into(),
+        "vivaldi" => "Vivaldi".into(),
         "code" => "Visual Studio Code".into(),
         "notepad" => "TextEdit".into(),
         "steam" => "Steam".into(),
